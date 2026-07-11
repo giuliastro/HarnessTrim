@@ -379,3 +379,18 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   the preset test to discover shipped skills from the real `skills/` directory (filesystem-backed)
   instead of a hardcoded list, so a preset referencing a missing skill now fails for real. 6 skills
   total; 54 tests still passing, typecheck clean. Next: Phase 2 live-session hardening with OpenCode.
+- **2026-07-11** — **Phase 2 hardened against a real OpenCode session** (§8 end-to-end gap closed).
+  Installed OpenCode CLI is **1.14.46**; our types were validated against `@opencode-ai/plugin@1.17.18`
+  — no drift affecting the hooks we use. Method: a gitignored `.hardening/` scratch project with
+  `.opencode/plugin/harnesstrim.ts` re-exporting the workspace adapter (telemetry on, minLength 200).
+  Verified, all in a live run (`opencode run -m opencode/deepseek-v4-flash-free`):
+  1. Plugin loads clean — the relative adapter import + the `@harnesstrim/core` workspace dep both
+     resolve under OpenCode's bundled runtime; hooks register without throwing; exit 0.
+  2. `tool.execute.after` fires in the real pipeline: a bash tool call producing 1410 chars of jest-like
+     output was reduced to 124 chars (`[harnesstrim] active bash via test-output-slim: 1410 -> 124`),
+     and the model received the slimmed output (`omitted 40 passing/noise line(s)` + FAIL + summary).
+  3. Telemetry written: one valid `TrimEvent` JSONL line; `harnesstrim metrics` aggregated it to
+     `1410 -> 124 (saved 1286, -91.2%)`.
+  So the mock-based adapter tests now have a real-session counterpart. `.hardening/` is gitignored
+  and reusable for future adapter smoke-tests. Remaining: Phase 4 (Claude Code / Codex / Pi adapters,
+  Tier B end-to-end benchmarks) and native-telemetry normalization for vanilla-vs-trimmed comparison.
