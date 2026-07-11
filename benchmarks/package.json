@@ -1,0 +1,15 @@
+{
+  "name": "@harnesstrim/benchmarks",
+  "version": "0.0.1",
+  "description": "Tier A micro-benchmarks: deterministic reducer token-reduction measurements against fixed fixtures, no LLM involved.",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@harnesstrim/core": "workspace:*",
+    "js-tiktoken": "^1.0.15"
+  },
+  "scripts": {
+    "bench": "node src/run.ts"
+  }
+}
