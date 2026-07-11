@@ -10,6 +10,7 @@
     "js-tiktoken": "^1.0.15"
   },
   "scripts": {
-    "bench": "node src/run.ts"
+    "bench": "node src/run.ts",
+    "typecheck": "tsc -p tsconfig.json"
   }
 }

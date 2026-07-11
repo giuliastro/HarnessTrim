@@ -11,6 +11,11 @@
   },
   "scripts": {
     "test": "pnpm -r --if-present run test",
+    "typecheck": "pnpm -r --if-present run typecheck",
     "bench": "pnpm --filter @harnesstrim/benchmarks run bench"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "typescript": "^7.0.2"
   }
 }

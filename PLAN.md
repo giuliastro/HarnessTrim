@@ -299,3 +299,32 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
     `tool.execute.before` using these reducers, plus `experimental.session.compacting` wired to
     `compact-handoff` skill logic (not yet written — still queued from §3 Layer 1's remaining 3
     skills: `scaffold-fast`, `compact-handoff`, `delegate-bulk`).
+- **2026-07-11** — Phase 2 (OpenCode adapter) complete.
+  - **Confirmed the real OpenCode plugin API by reading the installed
+    `@opencode-ai/plugin@1.17.18` type declarations** (not just docs). Correction to §5's
+    assumption: tool *output* reduction belongs in **`tool.execute.after`**, not
+    `tool.execute.before`. Confirmed signatures:
+    `tool.execute.after(input:{tool,sessionID,callID,args}, output:{title,output:string,metadata})`
+    — mutate `output.output`; and
+    `experimental.session.compacting(input:{sessionID}, output:{context:string[],prompt?})`
+    — push into `output.context`. `tool.execute.before` only exposes `output.args` (for arg
+    rewriting, RTK-style) — kept for later, not used in the MVP.
+  - `packages/core`: added a content-based dispatcher (`dispatch.ts`: `pickReducer` /
+    `reduceAuto`) so adapters stay thin and detection is unit-tested in core. Has a `minLength`
+    threshold (default 400 chars) to avoid churning small/stable content (cache-awareness, §2.2).
+  - `packages/adapter-opencode`: thin plugin (`plugin.ts`) delegating to `reduceAuto`, with a
+    3-mode config (`active`/`dryrun`/`off`) resolved from opencode.json options → env → defaults
+    (`config.ts`), and compaction-handoff injection (`handoff.ts`). Runtime measures by char count
+    on purpose — no tokenizer bundled into the harness process (token numbers stay in benchmarks).
+  - Added TypeScript **type-checking** across the workspace (was missing): `typescript@7` (native
+    compiler) + `@types/node`, base tsconfig switched to `noEmit`+`allowImportingTsExtensions`
+    (required because we run `.ts` directly via Node, see the toolchain finding above), `types:
+    ["node"]` needed for TS7 to pick up node globals. `pnpm run typecheck` is green on all 3
+    packages — this is what validates the plugin against OpenCode's real types.
+  - Shipped the `compact-handoff` skill, the adapter README, and `examples/opencode/`.
+  - Test/typecheck status: **20 unit tests passing**, typecheck clean. Still queued from §3 Layer 1:
+    `scaffold-fast`, `delegate-bulk` skills.
+  - Next candidates: Phase 3 (CLI: `harnesstrim doctor` / `install opencode` / `bench`,
+    telemetry `TrimEvent` normalizer) OR harden Phase 2 by testing the plugin inside a real
+    OpenCode session (the current tests exercise the hooks with mocked inputs, not a live harness —
+    see §8: `tool.execute.after` shape is now confirmed, but end-to-end load/behavior is unverified).
