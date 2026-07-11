@@ -349,3 +349,26 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
     install/doctor/bench, which deliver value without the fragile session-log parsing.
   - Still queued from §3 Layer 1: `scaffold-fast`, `delegate-bulk` skills. Phase 2 live-session
     hardening also still open.
+- **2026-07-11** — Phase 3 fully complete (telemetry + presets finished).
+  - **Key design decision on telemetry:** rather than scrape each harness's native usage logs
+    (unverified, drifting formats), the source of truth is a `TrimEvent` stream the *adapter emits* —
+    HarnessTrim measures what HarnessTrim did. `packages/core/src/metrics`: `TrimEvent` schema,
+    `summarize()` (totals + per-reducer breakdown, sorted by savings), `parseTrimEvents()` (tolerant
+    JSONL parser). Values in chars (matching adapter runtime measurement). Parsing native
+    per-harness telemetry for a vanilla-vs-trimmed comparison remains explicit future work.
+  - Adapter now emits TrimEvents: `telemetry` (off by default) + `telemetryPath`
+    (default `.harnesstrim/metrics.jsonl`) config; `telemetry.ts` file sink swallows write errors so
+    telemetry can never break the harness. In `dryrun` it still records what *would* be reduced.
+  - `packages/core/src/presets`: `lean-debug`, `lean-review`, `deep-architecture` (a unit test
+    asserts every preset references only shipped skills — `lean-scaffold` intentionally deferred
+    until the `scaffold-fast` skill exists). Preset = enforceable adapter config + advisory
+    skills/effort.
+  - CLI gained `preset list` / `preset show <name>`, `metrics [path]`, and `install opencode
+    --preset <name>` (bakes the preset's adapter config into the opencode.json plugin tuple, updating
+    an existing bare install in place). Verified end-to-end incl. a full adapter→telemetry→metrics
+    round-trip (confirmed the minLength threshold correctly skips sub-threshold output).
+  - **Test/typecheck status: 54 tests passing (24 core + 9 adapter + 21 cli), typecheck clean on all
+    4 packages.**
+  - Remaining project work (all Phase-3-external): `scaffold-fast` + `delegate-bulk` skills and the
+    `lean-scaffold` preset; Phase 2 live OpenCode-session hardening; Phase 4 (other harness adapters,
+    Tier B end-to-end benchmarks); native-telemetry normalization for vanilla-vs-trimmed comparison.

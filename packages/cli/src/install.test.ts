@@ -59,3 +59,30 @@ test("runInstallOpencode throws on malformed opencode.json", () => {
   fs.writeFileSync(path.join(dir, "opencode.json"), "{ not json");
   assert.throws(() => runInstallOpencode(dir, false), /not valid JSON/);
 });
+
+test("runInstallOpencode with a preset bakes the adapter config into a tuple", () => {
+  const dir = tmpProject();
+  const result = runInstallOpencode(dir, true, "lean-debug");
+  assert.equal(result.preset?.name, "lean-debug");
+  const written = JSON.parse(fs.readFileSync(result.configPath, "utf8"));
+  const entry = written.plugin[0];
+  assert.equal(entry[0], OPENCODE_PLUGIN_NAME);
+  assert.equal(entry[1].mode, "active");
+  assert.equal(entry[1].minLength, 300);
+});
+
+test("runInstallOpencode throws on an unknown preset", () => {
+  const dir = tmpProject();
+  assert.throws(() => runInstallOpencode(dir, false, "nope"), /Unknown preset/);
+});
+
+test("runInstallOpencode --preset updates an existing bare install to the tuple", () => {
+  const dir = tmpProject();
+  runInstallOpencode(dir, true); // bare string install
+  const second = runInstallOpencode(dir, true, "lean-review");
+  assert.equal(second.changed, true);
+  assert.equal(second.alreadyInstalled, true);
+  const written = JSON.parse(fs.readFileSync(second.configPath, "utf8"));
+  assert.equal(written.plugin.length, 1);
+  assert.equal(written.plugin[0][1].minLength, 400);
+});

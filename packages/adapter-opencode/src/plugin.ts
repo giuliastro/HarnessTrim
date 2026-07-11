@@ -1,7 +1,10 @@
 import type { Plugin } from "@opencode-ai/plugin";
-import { reduceAuto } from "@harnesstrim/core";
+import { reduceAuto, type TrimEvent } from "@harnesstrim/core";
 import { resolveConfig } from "./config.ts";
 import { COMPACTION_HANDOFF_CONTEXT } from "./handoff.ts";
+import { createFileSink, noopSink } from "./telemetry.ts";
+
+const HARNESS = "opencode";
 
 /**
  * HarnessTrim OpenCode adapter.
@@ -28,6 +31,8 @@ export const HarnessTrim: Plugin = async (_input, options) => {
     return {};
   }
 
+  const sink = config.telemetry ? createFileSink(config.telemetryPath) : noopSink;
+
   return {
     "tool.execute.after": async (input, output) => {
       if (typeof output.output !== "string") return;
@@ -39,6 +44,16 @@ export const HarnessTrim: Plugin = async (_input, options) => {
       if (config.mode === "active") {
         output.output = result.output;
       }
+
+      const event: TrimEvent = {
+        ts: new Date().toISOString(),
+        harness: HARNESS,
+        tool: input.tool,
+        reducer: result.reducer,
+        beforeChars: before,
+        afterChars: after,
+      };
+      sink(event);
       log(`${config.mode} ${input.tool} via ${result.reducer}: ${before} -> ${after} chars`);
     },
 

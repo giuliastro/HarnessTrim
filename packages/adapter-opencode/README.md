@@ -41,6 +41,12 @@ Options (in `opencode.json`) take precedence over environment variables, then de
 | `minLength`         | `HARNESSTRIM_MIN_LENGTH`  | `400`      | Tool outputs shorter than this (chars) are left untouched.     |
 | `debug`             | `HARNESSTRIM_DEBUG`       | `false`    | Emit one-line `[harnesstrim]` diagnostics to stderr.           |
 | `compactionHandoff` | —                         | `true`     | Inject handoff guidance on compaction.                         |
+| `telemetry`         | `HARNESSTRIM_TELEMETRY`   | `false`    | Append a `TrimEvent` JSONL record per reduction.               |
+| `telemetryPath`     | `HARNESSTRIM_TELEMETRY_PATH` | `.harnesstrim/metrics.jsonl` | Where telemetry JSONL is appended. |
+
+Telemetry is **off by default**. When on, each reduction appends one JSON line; read the aggregate
+with `harnesstrim metrics <path>`. In `dryrun` mode telemetry still records what *would* be reduced,
+so you can size the win before switching to `active`.
 
 Start with `mode: "dryrun"` and `debug: true` to see what *would* be reduced without changing
 model input, then switch to `active` once you're comfortable.
