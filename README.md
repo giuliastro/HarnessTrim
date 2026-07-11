@@ -18,11 +18,25 @@ Early scaffold. Current MVP target: **OpenCode** (see `PLAN.md` §5 for why).
 ```
 packages/core/              deterministic, idempotent reducers + content-based dispatcher
 packages/adapter-opencode/  OpenCode plugin: slims tool output + injects compaction handoff
+packages/cli/               harnesstrim CLI: doctor, install opencode, bench
 skills/                     portable Agent Skills (delta-response, debug-log-slim,
                             review-delta, compact-handoff)
 benchmarks/                 Tier A micro-benchmarks: reducer token-reduction, no LLM involved
 examples/opencode/          minimal opencode.json wiring the adapter (dry-run)
 ```
+
+## CLI
+
+```sh
+pnpm exec harnesstrim doctor [dir]            # diagnose token-waste signals in a project
+pnpm exec harnesstrim install opencode [dir]  # wire the adapter into opencode.json (dry-run)
+pnpm exec harnesstrim install opencode --apply
+pnpm exec harnesstrim bench                    # run the Tier A reducer micro-benchmark
+```
+
+`doctor` flags oversized always-loaded instruction files (CLAUDE.md/AGENTS.md/...), reports whether
+on-demand skills are used, and whether the OpenCode adapter is wired in. `install` is dry-run until
+`--apply`.
 
 ## Try it
 

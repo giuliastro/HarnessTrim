@@ -328,3 +328,24 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
     telemetry `TrimEvent` normalizer) OR harden Phase 2 by testing the plugin inside a real
     OpenCode session (the current tests exercise the hooks with mocked inputs, not a live harness —
     see §8: `tool.execute.after` shape is now confirmed, but end-to-end load/behavior is unverified).
+- **2026-07-11** — Phase 3 (CLI) MVP complete: `packages/cli` (`bin: harnesstrim`), runnable via
+  `node`/Node-24 TS or `pnpm exec harnesstrim` (linked by adding the CLI as a root devDependency).
+  Three commands, all end-to-end verified and unit-tested:
+  - **`doctor [dir]`** — the entry-point diagnostic (PLAN §3 Layer 3). Pure `inspect(dir)` returns a
+    structured `DoctorReport`; flags oversized always-loaded instruction files
+    (CLAUDE.md/AGENTS.md/GEMINI.md/.cursorrules/.windsurfrules, warn > 4000 chars), reports skill
+    usage across `.claude/skills` / `.opencode/skills` / `.agents/skills` / `skills`, and whether the
+    OpenCode adapter is wired into opencode.json. Uses a labeled char/4 estimate (no tokenizer dep in
+    the CLI — deliberate, keeps it light).
+  - **`install opencode [dir] [--apply]`** — dry-run by default (security model §4); pure
+    `planOpencodeInstall(config)` computes the plugin wiring preserving existing keys/plugins,
+    idempotent, `--apply` writes opencode.json.
+  - **`bench`** — imports `runBench()` from `@harnesstrim/benchmarks/run` (refactored to export it +
+    auto-run-if-main), so js-tiktoken only loads on demand.
+  - Arg parsing via built-in `node:util parseArgs` (zero deps). 35 tests passing total (14 core +
+    6 adapter + 15 cli), typecheck clean on all 4 packages.
+  - **Still remaining from Phase 3 (deferred, noted honestly):** telemetry normalizer + `TrimEvent`
+    schema, and policy presets (`lean-debug`/`lean-review`). Not started — the CLI MVP covers
+    install/doctor/bench, which deliver value without the fragile session-log parsing.
+  - Still queued from §3 Layer 1: `scaffold-fast`, `delegate-bulk` skills. Phase 2 live-session
+    hardening also still open.

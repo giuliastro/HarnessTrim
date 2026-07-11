@@ -1,4 +1,4 @@
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 import fs from "node:fs";
 import { testOutputSlim, gitDiffSlim, type Reducer } from "@harnesstrim/core";
@@ -19,7 +19,7 @@ const FIXTURES: Fixture[] = [
   { file: "git-diff/lockfile-heavy.diff", reducer: gitDiffSlim },
 ];
 
-interface BenchRow {
+export interface BenchRow {
   fixture: string;
   reducer: string;
   beforeChars: number;
@@ -29,38 +29,59 @@ interface BenchRow {
   tokenReductionPct: number;
 }
 
+export interface BenchReport {
+  rows: BenchRow[];
+  totalBefore: number;
+  totalAfter: number;
+  overallPct: number;
+}
+
 function pct(before: number, after: number): number {
   if (before === 0) return 0;
   return Math.round((1 - after / before) * 1000) / 10;
 }
 
-const rows: BenchRow[] = FIXTURES.map(({ file, reducer }) => {
-  const raw = fs.readFileSync(path.join(fixturesDir, file), "utf8");
-  const result = reducer.reduce(raw);
-  const beforeTokens = countTokens(raw);
-  const afterTokens = countTokens(result.output);
-  return {
-    fixture: file,
-    reducer: reducer.name,
-    beforeChars: raw.length,
-    afterChars: result.output.length,
-    beforeTokens,
-    afterTokens,
-    tokenReductionPct: pct(beforeTokens, afterTokens),
-  };
-});
+/**
+ * Run the Tier A micro-benchmark: apply each reducer to its fixtures, measure
+ * before/after tokens with a real tokenizer, print a table, and write a JSON
+ * report. Returns the structured report so callers (e.g. the CLI) can reuse it.
+ */
+export function runBench(): BenchReport {
+  const rows: BenchRow[] = FIXTURES.map(({ file, reducer }) => {
+    const raw = fs.readFileSync(path.join(fixturesDir, file), "utf8");
+    const result = reducer.reduce(raw);
+    const beforeTokens = countTokens(raw);
+    const afterTokens = countTokens(result.output);
+    return {
+      fixture: file,
+      reducer: reducer.name,
+      beforeChars: raw.length,
+      afterChars: result.output.length,
+      beforeTokens,
+      afterTokens,
+      tokenReductionPct: pct(beforeTokens, afterTokens),
+    };
+  });
 
-for (const row of rows) {
-  console.log(
-    `${row.fixture.padEnd(34)} ${row.reducer.padEnd(18)} tokens ${String(row.beforeTokens).padStart(5)} -> ${String(row.afterTokens).padStart(5)}  (-${row.tokenReductionPct}%)`
-  );
+  for (const row of rows) {
+    console.log(
+      `${row.fixture.padEnd(34)} ${row.reducer.padEnd(18)} tokens ${String(row.beforeTokens).padStart(5)} -> ${String(row.afterTokens).padStart(5)}  (-${row.tokenReductionPct}%)`
+    );
+  }
+
+  const totalBefore = rows.reduce((s, r) => s + r.beforeTokens, 0);
+  const totalAfter = rows.reduce((s, r) => s + r.afterTokens, 0);
+  const overallPct = pct(totalBefore, totalAfter);
+  console.log(`\nOverall: ${totalBefore} -> ${totalAfter} tokens (-${overallPct}%)`);
+
+  fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+  const report: BenchReport = { rows, totalBefore, totalAfter, overallPct };
+  fs.writeFileSync(reportPath, JSON.stringify(report, null, 2) + "\n");
+  console.log(`\nReport written to ${path.relative(process.cwd(), reportPath)}`);
+  return report;
 }
 
-const totalBefore = rows.reduce((s, r) => s + r.beforeTokens, 0);
-const totalAfter = rows.reduce((s, r) => s + r.afterTokens, 0);
-const overallPct = pct(totalBefore, totalAfter);
-console.log(`\nOverall: ${totalBefore} -> ${totalAfter} tokens (-${overallPct}%)`);
-
-fs.mkdirSync(path.dirname(reportPath), { recursive: true });
-fs.writeFileSync(reportPath, JSON.stringify({ rows, totalBefore, totalAfter, overallPct }, null, 2) + "\n");
-console.log(`\nReport written to ${path.relative(process.cwd(), reportPath)}`);
+// Auto-run when executed directly (node src/run.ts), but not when imported.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  runBench();
+}
