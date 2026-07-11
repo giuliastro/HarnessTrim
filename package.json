@@ -15,6 +15,7 @@
     "bench": "pnpm --filter @harnesstrim/benchmarks run bench"
   },
   "devDependencies": {
+    "@harnesstrim/cli": "workspace:*",
     "@types/node": "^26.1.1",
     "typescript": "^7.0.2"
   }

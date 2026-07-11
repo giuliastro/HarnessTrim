@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@harnesstrim/cli':
+        specifier: workspace:*
+        version: link:packages/cli
       '@types/node':
         specifier: ^26.1.1
         version: 26.1.1
@@ -33,6 +36,12 @@ importers:
       '@opencode-ai/plugin':
         specifier: latest
         version: 1.17.18
+
+  packages/cli:
+    dependencies:
+      '@harnesstrim/benchmarks':
+        specifier: workspace:*
+        version: link:../../benchmarks
 
   packages/core: {}
 

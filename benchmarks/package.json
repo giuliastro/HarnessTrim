@@ -5,6 +5,9 @@
   "license": "MIT",
   "type": "module",
   "private": true,
+  "exports": {
+    "./run": "./src/run.ts"
+  },
   "dependencies": {
     "@harnesstrim/core": "workspace:*",
     "js-tiktoken": "^1.0.15"
