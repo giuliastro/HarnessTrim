@@ -372,3 +372,10 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   - Remaining project work (all Phase-3-external): `scaffold-fast` + `delegate-bulk` skills and the
     `lean-scaffold` preset; Phase 2 live OpenCode-session hardening; Phase 4 (other harness adapters,
     Tier B end-to-end benchmarks); native-telemetry normalization for vanilla-vs-trimmed comparison.
+- **2026-07-11** — §3 Layer 1 skill pack now complete: added `scaffold-fast` (mechanical/low-novelty
+  work, minimal reasoning) and `delegate-bulk` (when to isolate noisy/volumetric work to a subagent
+  or another harness — delegate to shrink the main context, never to duplicate it). Added the
+  `lean-scaffold` preset (scaffold-fast + delegate-bulk + delta-response, minimal effort). Hardened
+  the preset test to discover shipped skills from the real `skills/` directory (filesystem-backed)
+  instead of a hardcoded list, so a preset referencing a missing skill now fails for real. 6 skills
+  total; 54 tests still passing, typecheck clean. Next: Phase 2 live-session hardening with OpenCode.

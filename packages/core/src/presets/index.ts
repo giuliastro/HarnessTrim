@@ -5,8 +5,7 @@
  * skill activation are surfaced as recommendations (the reasoning-effort config
  * surface per harness is not yet wired — see PLAN.md §8).
  *
- * Presets reference only shipped skills. `lean-scaffold` is intentionally absent
- * until the `scaffold-fast` skill lands.
+ * Presets reference only shipped skills.
  */
 export type ReasoningEffort = "minimal" | "low" | "medium" | "high";
 
@@ -42,6 +41,14 @@ export const PRESETS: Record<string, Preset> = {
     skills: ["review-delta", "delta-response"],
     reasoningEffort: "medium",
     notes: "Review benefits from some reasoning; output discipline avoids diff-narration bloat.",
+  },
+  "lean-scaffold": {
+    name: "lean-scaffold",
+    description: "Boilerplate and mechanical transforms: minimal reasoning, terse output.",
+    adapter: { mode: "active", minLength: 400, compactionHandoff: true },
+    skills: ["scaffold-fast", "delegate-bulk", "delta-response"],
+    reasoningEffort: "minimal",
+    notes: "Settled-shape work; spend budget on code, and delegate bulk volume to isolated contexts.",
   },
   "deep-architecture": {
     name: "deep-architecture",

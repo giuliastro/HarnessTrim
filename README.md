@@ -20,7 +20,7 @@ packages/core/              deterministic, idempotent reducers + content-based d
 packages/adapter-opencode/  OpenCode plugin: slims tool output + injects compaction handoff
 packages/cli/               harnesstrim CLI: doctor, install opencode, bench
 skills/                     portable Agent Skills (delta-response, debug-log-slim,
-                            review-delta, compact-handoff)
+                            review-delta, compact-handoff, scaffold-fast, delegate-bulk)
 benchmarks/                 Tier A micro-benchmarks: reducer token-reduction, no LLM involved
 examples/opencode/          minimal opencode.json wiring the adapter (dry-run)
 ```
