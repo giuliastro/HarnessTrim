@@ -1,8 +1,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { PRESETS, getPreset, listPresets } from "./index.ts";
 
-const SHIPPED_SKILLS = new Set(["delta-response", "debug-log-slim", "review-delta", "compact-handoff"]);
+// Discover the skills actually shipped in the repo's skills/ directory, so this
+// test fails for real if a preset references a skill that doesn't exist.
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const skillsDir = path.join(repoRoot, "skills");
+const SHIPPED_SKILLS = new Set(
+  fs
+    .readdirSync(skillsDir, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && fs.existsSync(path.join(skillsDir, e.name, "SKILL.md")))
+    .map((e) => e.name)
+);
 
 test("getPreset returns a known preset and undefined otherwise", () => {
   assert.equal(getPreset("lean-debug")?.name, "lean-debug");
