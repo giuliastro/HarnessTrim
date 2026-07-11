@@ -16,18 +16,27 @@ Early scaffold. Current MVP target: **OpenCode** (see `PLAN.md` §5 for why).
 ## Layout
 
 ```
-packages/core/       deterministic, idempotent reducers + policy primitives
-skills/               portable Agent Skills (delta-response, debug-log-slim, review-delta)
-benchmarks/           Tier A micro-benchmarks: reducer token-reduction, no LLM involved
+packages/core/              deterministic, idempotent reducers + content-based dispatcher
+packages/adapter-opencode/  OpenCode plugin: slims tool output + injects compaction handoff
+skills/                     portable Agent Skills (delta-response, debug-log-slim,
+                            review-delta, compact-handoff)
+benchmarks/                 Tier A micro-benchmarks: reducer token-reduction, no LLM involved
+examples/opencode/          minimal opencode.json wiring the adapter (dry-run)
 ```
 
 ## Try it
 
 ```sh
 pnpm install
-pnpm run test    # unit tests for packages/core reducers
-pnpm run bench   # Tier A micro-benchmark: token reduction on fixed fixtures
+pnpm run test        # unit tests (core reducers + dispatcher + adapter hooks)
+pnpm run typecheck   # type-check every package against real dependency types
+pnpm run bench       # Tier A micro-benchmark: token reduction on fixed fixtures
 ```
+
+## Use it in OpenCode
+
+See [`packages/adapter-opencode`](packages/adapter-opencode/README.md) and
+[`examples/opencode`](examples/opencode/). Start in `dryrun` mode, then switch to `active`.
 
 ## License
 
