@@ -1,5 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { parseTrimEvents } from "@harnesstrim/core";
 import { HarnessTrim } from "./plugin.ts";
 
 // Minimal stand-ins for the OpenCode hook argument shapes (see @opencode-ai/plugin Hooks).
@@ -60,4 +64,41 @@ test("compactionHandoff:false disables the compaction injection", async () => {
   const out = { context: [] as string[], prompt: undefined as string | undefined };
   await hooks["experimental.session.compacting"]!({ sessionID: "s" }, out);
   assert.equal(out.context.length, 0);
+});
+
+test("telemetry: appends a TrimEvent when enabled", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "htrim-telemetry-"));
+  const telemetryPath = path.join(dir, "metrics.jsonl");
+  const hooks = await HarnessTrim(noopInput, { mode: "active", telemetry: true, telemetryPath });
+  const { input, output } = afterArgs(noisyTestOutput);
+  await hooks["tool.execute.after"]!(input, output);
+
+  const events = parseTrimEvents(fs.readFileSync(telemetryPath, "utf8"));
+  assert.equal(events.length, 1);
+  assert.equal(events[0].harness, "opencode");
+  assert.equal(events[0].tool, "bash");
+  assert.equal(events[0].reducer, "test-output-slim");
+  assert.ok(events[0].afterChars < events[0].beforeChars);
+});
+
+test("telemetry: off by default writes nothing", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "htrim-telemetry-"));
+  const telemetryPath = path.join(dir, "metrics.jsonl");
+  const hooks = await HarnessTrim(noopInput, { mode: "active", telemetryPath });
+  const { input, output } = afterArgs(noisyTestOutput);
+  await hooks["tool.execute.after"]!(input, output);
+  assert.equal(fs.existsSync(telemetryPath), false);
+});
+
+test("telemetry: dryrun still records what would be reduced", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "htrim-telemetry-"));
+  const telemetryPath = path.join(dir, "metrics.jsonl");
+  const hooks = await HarnessTrim(noopInput, { mode: "dryrun", telemetry: true, telemetryPath });
+  const { input, output } = afterArgs(noisyTestOutput);
+  const original = output.output;
+  await hooks["tool.execute.after"]!(input, output);
+
+  assert.equal(output.output, original); // dryrun didn't mutate
+  const events = parseTrimEvents(fs.readFileSync(telemetryPath, "utf8"));
+  assert.equal(events.length, 1); // but it recorded the potential reduction
 });

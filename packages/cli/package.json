@@ -8,7 +8,8 @@
     "harnesstrim": "./src/cli.ts"
   },
   "dependencies": {
-    "@harnesstrim/benchmarks": "workspace:*"
+    "@harnesstrim/benchmarks": "workspace:*",
+    "@harnesstrim/core": "workspace:*"
   },
   "scripts": {
     "test": "node --test \"src/**/*.test.ts\"",

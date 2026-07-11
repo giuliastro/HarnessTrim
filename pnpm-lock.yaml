@@ -42,6 +42,9 @@ importers:
       '@harnesstrim/benchmarks':
         specifier: workspace:*
         version: link:../../benchmarks
+      '@harnesstrim/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/core: {}
 

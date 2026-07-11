@@ -11,11 +11,17 @@ export interface AdapterConfig {
   mode: Mode;
   /** Tool outputs shorter than this (chars) are left untouched. */
   minLength: number;
-  /** Emit one-line `[harnesstrim]` diagnostics to stderr. Off by default (telemetry off by default). */
+  /** Emit one-line `[harnesstrim]` diagnostics to stderr. Off by default. */
   debug: boolean;
   /** Inject compaction-handoff guidance on `experimental.session.compacting`. */
   compactionHandoff: boolean;
+  /** Append a TrimEvent JSONL record per reduction. Off by default (telemetry off by default). */
+  telemetry: boolean;
+  /** Where telemetry JSONL is appended (relative paths resolve against cwd). */
+  telemetryPath: string;
 }
+
+export const DEFAULT_TELEMETRY_PATH = ".harnesstrim/metrics.jsonl";
 
 function parseMode(value: unknown): Mode | undefined {
   return value === "active" || value === "dryrun" || value === "off" ? value : undefined;
@@ -38,5 +44,12 @@ export function resolveConfig(options: Record<string, unknown> = {}): AdapterCon
   const debug = options.debug === true || env.HARNESSTRIM_DEBUG === "1" || env.HARNESSTRIM_DEBUG === "true";
   const compactionHandoff = options.compactionHandoff !== false;
 
-  return { mode, minLength, debug, compactionHandoff };
+  const telemetry =
+    options.telemetry === true || env.HARNESSTRIM_TELEMETRY === "1" || env.HARNESSTRIM_TELEMETRY === "true";
+  const telemetryPath =
+    (typeof options.telemetryPath === "string" ? options.telemetryPath : undefined) ??
+    env.HARNESSTRIM_TELEMETRY_PATH ??
+    DEFAULT_TELEMETRY_PATH;
+
+  return { mode, minLength, debug, compactionHandoff, telemetry, telemetryPath };
 }

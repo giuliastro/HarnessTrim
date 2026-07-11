@@ -31,12 +31,17 @@ examples/opencode/          minimal opencode.json wiring the adapter (dry-run)
 pnpm exec harnesstrim doctor [dir]            # diagnose token-waste signals in a project
 pnpm exec harnesstrim install opencode [dir]  # wire the adapter into opencode.json (dry-run)
 pnpm exec harnesstrim install opencode --apply
+pnpm exec harnesstrim install opencode --preset lean-debug --apply
+pnpm exec harnesstrim preset list             # list policy presets
+pnpm exec harnesstrim preset show lean-review
+pnpm exec harnesstrim metrics [path]          # summarize adapter telemetry (JSONL)
 pnpm exec harnesstrim bench                    # run the Tier A reducer micro-benchmark
 ```
 
-`doctor` flags oversized always-loaded instruction files (CLAUDE.md/AGENTS.md/...), reports whether
-on-demand skills are used, and whether the OpenCode adapter is wired in. `install` is dry-run until
-`--apply`.
+- `doctor` flags oversized always-loaded instruction files (CLAUDE.md/AGENTS.md/...), reports
+  whether on-demand skills are used, and whether the OpenCode adapter is wired in.
+- `install` is dry-run until `--apply`; `--preset` bakes a policy preset's adapter config in.
+- `metrics` aggregates the telemetry the adapter emits (off by default) into chars saved per reducer.
 
 ## Try it
 
