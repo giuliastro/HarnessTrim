@@ -1,0 +1,16 @@
+{
+  "name": "harnesstrim",
+  "private": true,
+  "version": "0.0.1",
+  "description": "One token policy for Claude Code, Codex, OpenCode and Pi.",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@10.33.4",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "pnpm -r --if-present run test",
+    "bench": "pnpm --filter @harnesstrim/benchmarks run bench"
+  }
+}

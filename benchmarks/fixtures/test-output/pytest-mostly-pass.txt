@@ -1,0 +1,38 @@
+tests/test_auth.py::test_login_valid_credentials PASSED
+tests/test_auth.py::test_login_invalid_password PASSED
+tests/test_auth.py::test_login_unknown_user PASSED
+tests/test_auth.py::test_logout PASSED
+tests/test_auth.py::test_session_expiry PASSED
+tests/test_auth.py::test_token_refresh PASSED
+tests/test_users.py::test_create_user PASSED
+tests/test_users.py::test_delete_user PASSED
+tests/test_users.py::test_update_user_email PASSED
+tests/test_users.py::test_update_user_password PASSED
+tests/test_users.py::test_list_users_pagination PASSED
+tests/test_users.py::test_list_users_filtering PASSED
+tests/test_billing.py::test_create_invoice PASSED
+tests/test_billing.py::test_apply_discount PASSED
+tests/test_billing.py::test_refund_full PASSED
+tests/test_billing.py::test_refund_partial PASSED
+tests/test_billing.py::test_tax_calculation_eu PASSED
+tests/test_billing.py::test_tax_calculation_us FAILED
+tests/test_billing.py::test_currency_conversion PASSED
+
+=================================== FAILURES ===================================
+______________________ test_tax_calculation_us ______________________
+
+    def test_tax_calculation_us():
+        invoice = make_invoice(amount=100.00, state="CA")
+>       assert invoice.tax == Decimal("8.25")
+E       AssertionError: assert Decimal('7.25') == Decimal('8.25')
+
+tests/test_billing.py:142: AssertionError
+
+Traceback (most recent call last):
+  File "tests/test_billing.py", line 142, in test_tax_calculation_us
+    assert invoice.tax == Decimal("8.25")
+AssertionError
+
+=========================== short test summary info ============================
+FAILED tests/test_billing.py::test_tax_calculation_us - AssertionError: assert Decimal('7.25') == Decimal('8.25')
+====================== 1 failed, 18 passed in 0.87s =======================

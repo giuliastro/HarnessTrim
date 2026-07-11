@@ -1,0 +1,51 @@
+PASS src/utils/format.test.ts
+  ✓ formats currency (2 ms)
+  ✓ formats percentages (1 ms)
+  ✓ formats dates (1 ms)
+  ✓ formats durations (1 ms)
+  ✓ handles null input (1 ms)
+PASS src/utils/parse.test.ts
+  ✓ parses integers (1 ms)
+  ✓ parses floats (1 ms)
+  ✓ parses booleans (1 ms)
+  ✓ rejects malformed input (1 ms)
+PASS src/utils/validate.test.ts
+  ✓ validates email (1 ms)
+  ✓ validates phone number (1 ms)
+  ✓ validates postal code (1 ms)
+  ✓ rejects empty string (1 ms)
+PASS src/utils/collections.test.ts
+  ✓ dedupes arrays (1 ms)
+  ✓ groups by key (1 ms)
+  ✓ sorts stably (1 ms)
+  ✓ chunks arrays (1 ms)
+PASS src/utils/strings.test.ts
+  ✓ trims whitespace (1 ms)
+  ✓ truncates long strings (1 ms)
+  ✓ escapes html (1 ms)
+  ✓ slugifies titles (1 ms)
+FAIL src/utils/currency.test.ts
+  ✓ formats USD (1 ms)
+  ✓ formats EUR (1 ms)
+  ✕ rounds half-even for JPY (3 ms)
+
+  ● currency > rounds half-even for JPY
+
+    expect(received).toBe(expected)
+
+    Expected: 1200
+    Received: 1201
+
+      18 |   const result = roundHalfEven(1200.5, "JPY");
+      19 |
+    > 20 |   expect(result).toBe(1200);
+         |                  ^
+      21 | });
+      22 |
+
+      at Object.<anonymous> (src/utils/currency.test.ts:20:18)
+
+Test Suites: 1 failed, 4 passed, 5 total
+Tests:       1 failed, 21 passed, 22 total
+Snapshots:   0 total
+Time:        1.204 s
