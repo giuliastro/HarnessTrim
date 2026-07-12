@@ -76,7 +76,7 @@ This hook:
 
 ## Status
 
-The install planner (`planHermesInstall`) is pure and unit-tested. The Python plugin ships with the
-package. The Hermes plugin was *not* verified in a live Hermes session yet — the `transform_tool_result`
-hook contract was assumed from the public plugin API. Run `harnesstrim install hermes --apply`, enable
-the plugin, and check Hermes stderr for `[harnesstrim]` logs in dry-run mode to verify.
+The install planner (`planHermesInstall`) is pure and unit-tested, and the Python plugin ships with
+the package. The `transform_tool_result` hook contract is confirmed against the official Hermes docs
+(hooks reference). **Verified in a live Hermes session** — the plugin loads, the hook fires on
+`terminal` output, and reduction works end-to-end.

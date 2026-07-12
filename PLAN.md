@@ -446,3 +446,15 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   `install codex`) since it edits global Codex config. README now documents MCP-tool vs shell-pipe
   trade-offs. `run-and-reduce` (execute+reduce) intentionally NOT built: it would run commands
   outside the harness sandbox — the shell pipe already covers pre-context token savings safely.
+- **2026-07-12** — **Hermes Agent adapter merged (community PR #1 by Gervaso) and live-verified.**
+  Adds `packages/adapter-hermes`: a Python plugin hooking Hermes' `transform_tool_result` (fires after
+  a tool returns, before the result enters context; returning a string replaces what the model sees).
+  For `terminal` output it shells out to `harnesstrim reduce`. Install via `harnesstrim install hermes`
+  (dry-run default, idempotent via a `.installed` marker), then enable in Hermes `config.yaml`.
+  Review note for the record: I initially blocked the PR believing the hook was fabricated — that was
+  **my error**, based on the `/docs` summary. The dedicated hooks page
+  (`/docs/user-guide/features/hooks`) documents `transform_tool_result` in a `VALID_HOOKS` list, so
+  the contributor's citations were legitimate. The user then **tested it live on Hermes and confirmed
+  it works**, so the adapter is now live-verified (README caveat removed). Third harness with a
+  deterministic hook-based reducer (OpenCode, Claude Code, Hermes), alongside Codex's instruction/MCP
+  path. 79 tests passing, typecheck clean on 8 packages. Remaining: **Pi adapter**, Tier B benchmark.
