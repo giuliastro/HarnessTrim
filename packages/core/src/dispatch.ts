@@ -41,5 +41,11 @@ export function reduceAuto(text: string, minLength: number = DEFAULT_MIN_LENGTH)
     return { output: text, changed: false, reducer: null };
   }
   const result = reducer.reduce(text);
+  // Safety net: never emit output larger than the input. On tiny inputs a collapse
+  // marker can exceed the few lines it replaces; reduction must never backfire on
+  // cost or cache, so fall back to the original in that case.
+  if (!result.changed || result.output.length >= text.length) {
+    return { output: text, changed: false, reducer: null };
+  }
   return { ...result, reducer: reducer.name };
 }

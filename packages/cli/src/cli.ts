@@ -1,12 +1,19 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
+import fs from "node:fs";
 import { getPreset, listPresets } from "@harnesstrim/core";
 import { inspect } from "./doctor.ts";
 import { runInstallOpencode } from "./install.ts";
+import { runInstallCodex } from "./install-codex.ts";
+import { runInstallClaude } from "./install-claude.ts";
+import { buildClaudeHookResponse } from "@harnesstrim/adapter-claude";
 import { loadMetrics, DEFAULT_METRICS_PATH } from "./metrics.ts";
+import { readStdin, reducePipe } from "./reduce.ts";
 import {
   renderDoctor,
   renderInstall,
+  renderCodexInstall,
+  renderClaudeInstall,
   renderMetrics,
   renderPresetList,
   renderPresetShow,
@@ -19,15 +26,22 @@ Usage:
   harnesstrim install opencode [dir]       Wire the adapter into opencode.json (dry-run)
                             --apply         Actually write the change
                             --preset <name> Bake a policy preset's adapter config in
+  harnesstrim install codex [dir]          Install skills + AGENTS.md reduce-pipe (dry-run)
+                            --apply         Actually write the change
+  harnesstrim install claude [dir]         Install skills + PostToolUse reducer hook (dry-run)
+                            --apply         Actually write the change
+  harnesstrim hook claude                  PostToolUse hook runtime (reads Claude JSON on stdin)
   harnesstrim preset list                  List policy presets
   harnesstrim preset show <name>           Show a preset in detail
   harnesstrim metrics [path]               Summarize adapter telemetry (JSONL)
+  harnesstrim reduce [--stats]             Slim stdin -> stdout (pipe noisy command output)
   harnesstrim bench                        Run the Tier A reducer micro-benchmark
   harnesstrim --help                       Show this help
 
 Notes:
   - install is dry-run by default; nothing is written without --apply.
-  - dir defaults to the current directory; metrics path defaults to ${DEFAULT_METRICS_PATH}.`;
+  - dir defaults to the current directory; metrics path defaults to ${DEFAULT_METRICS_PATH}.
+  - reduce reads stdin and writes slimmed output to stdout, e.g.  npm test 2>&1 | harnesstrim reduce`;
 
 async function main(argv: string[]): Promise<number> {
   const { values, positionals } = parseArgs({
@@ -37,6 +51,9 @@ async function main(argv: string[]): Promise<number> {
       help: { type: "boolean", short: "h" },
       apply: { type: "boolean" },
       preset: { type: "string" },
+      stats: { type: "boolean" },
+      "min-length": { type: "string" },
+      log: { type: "string" },
     },
   });
 
@@ -55,13 +72,44 @@ async function main(argv: string[]): Promise<number> {
     }
     case "install": {
       const target = rest[0];
-      if (target !== "opencode") {
-        console.error(`Unknown install target: ${target ?? "(none)"}. Supported: opencode.`);
+      const dir = rest[1] ?? process.cwd();
+      const apply = values.apply === true;
+      if (target === "opencode") {
+        const result = runInstallOpencode(dir, apply, values.preset);
+        console.log(renderInstall(result, apply));
+        return 0;
+      }
+      if (target === "codex") {
+        console.log(renderCodexInstall(runInstallCodex(dir, apply), apply));
+        return 0;
+      }
+      if (target === "claude") {
+        console.log(renderClaudeInstall(runInstallClaude(dir, apply), apply));
+        return 0;
+      }
+      console.error(`Unknown install target: ${target ?? "(none)"}. Supported: opencode, codex, claude.`);
+      return 1;
+    }
+    case "hook": {
+      const which = rest[0];
+      if (which !== "claude") {
+        console.error(`Unknown hook target: ${which ?? "(none)"}. Supported: claude.`);
         return 1;
       }
-      const dir = rest[1] ?? process.cwd();
-      const result = runInstallOpencode(dir, values.apply === true, values.preset);
-      console.log(renderInstall(result, values.apply === true));
+      const input = await readStdin();
+      const response = buildClaudeHookResponse(input);
+      process.stdout.write(response);
+      if (values.log) {
+        const changed = response !== "{}";
+        try {
+          fs.appendFileSync(
+            values.log,
+            JSON.stringify({ inputChars: input.length, changed, responseChars: response.length }) + "\n"
+          );
+        } catch {
+          /* logging must never break the hook */
+        }
+      }
       return 0;
     }
     case "preset": {
@@ -86,6 +134,24 @@ async function main(argv: string[]): Promise<number> {
     case "metrics": {
       const path = rest[0] ?? DEFAULT_METRICS_PATH;
       console.log(renderMetrics(loadMetrics(path)));
+      return 0;
+    }
+    case "reduce": {
+      const minLenRaw = values["min-length"];
+      const minLength = minLenRaw !== undefined ? Number(minLenRaw) : undefined;
+      if (minLength !== undefined && !Number.isFinite(minLength)) {
+        console.error(`Invalid --min-length: ${minLenRaw}`);
+        return 1;
+      }
+      const input = await readStdin();
+      const result = reducePipe(input, minLength);
+      process.stdout.write(result.output);
+      if (values.stats) {
+        const note = result.changed
+          ? `${result.reducer}: ${result.beforeChars} -> ${result.afterChars} chars`
+          : "no reduction (no reducer matched or below min-length)";
+        console.error(`[harnesstrim reduce] ${note}`);
+      }
       return 0;
     }
     case "bench": {

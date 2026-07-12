@@ -8,6 +8,8 @@
     "harnesstrim": "./src/cli.ts"
   },
   "dependencies": {
+    "@harnesstrim/adapter-claude": "workspace:*",
+    "@harnesstrim/adapter-codex": "workspace:*",
     "@harnesstrim/benchmarks": "workspace:*",
     "@harnesstrim/core": "workspace:*"
   },
