@@ -11,7 +11,8 @@
     "@harnesstrim/adapter-claude": "workspace:*",
     "@harnesstrim/adapter-codex": "workspace:*",
     "@harnesstrim/benchmarks": "workspace:*",
-    "@harnesstrim/core": "workspace:*"
+    "@harnesstrim/core": "workspace:*",
+    "@harnesstrim/mcp": "workspace:*"
   },
   "scripts": {
     "test": "node --test \"src/**/*.test.ts\"",

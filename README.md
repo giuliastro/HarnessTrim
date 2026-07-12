@@ -217,7 +217,8 @@ packages/core/              deterministic, idempotent reducers + content dispatc
 packages/adapter-opencode/  OpenCode plugin: slims tool output + injects compaction handoff + telemetry
 packages/adapter-codex/     Codex: skill bundle + AGENTS.md reduce-pipe instruction
 packages/adapter-claude/    Claude Code: PostToolUse reducer hook + skill bundle
-packages/cli/               harnesstrim CLI: doctor, install, preset, metrics, reduce, hook, bench
+packages/mcp/               MCP server exposing a `reduce` tool (Codex, Claude Code, any MCP client)
+packages/cli/               harnesstrim CLI: doctor, install, preset, metrics, reduce, hook, mcp, bench
 skills/                     portable Agent Skills (delta-response, debug-log-slim, review-delta,
                             compact-handoff, scaffold-fast, delegate-bulk)
 benchmarks/                 Tier A micro-benchmarks: reducer token-reduction, no LLM involved
@@ -255,10 +256,62 @@ pnpm run typecheck   # type-check every package against real dependency types
 pnpm run bench       # Tier A micro-benchmark: token reduction on fixed fixtures
 ```
 
-## Use it in OpenCode
+## Using it in your harness
 
-See [`packages/adapter-opencode`](packages/adapter-opencode/README.md) and
-[`examples/opencode`](examples/opencode/). Start in `dryrun` mode, then switch to `active`.
+Each harness has a one-command installer (dry-run until `--apply`). First make the `harnesstrim`
+command available — until the package is published, either prefix commands with `pnpm exec` from this
+repo, or link it once:
+
+```sh
+pnpm install
+pnpm --filter @harnesstrim/cli link --global   # exposes `harnesstrim` on PATH
+```
+
+Adapters are dry-run by default: run without `--apply` first to see exactly what will change.
+
+### OpenCode
+
+```sh
+harnesstrim install opencode /path/to/project --apply
+```
+
+Wires the plugin into `opencode.json`. It reduces tool output automatically via `tool.execute.after`
+— no per-command action needed. Start with `"mode": "dryrun"` in the plugin options to preview, then
+switch to `"active"`. Details: [`packages/adapter-opencode`](packages/adapter-opencode/README.md),
+example: [`examples/opencode`](examples/opencode/).
+
+### Codex
+
+```sh
+harnesstrim install codex /path/to/project --apply
+```
+
+Copies the skill pack into `.codex/skills` and adds a reduce-pipe instruction to `AGENTS.md`. The
+agent then slims noisy output by piping it (`pytest 2>&1 | harnesstrim reduce`), so `harnesstrim`
+must be on PATH. For a first-class, native tool instead of a shell pipe, register the MCP reducer:
+
+```sh
+codex mcp add harnesstrim -- harnesstrim mcp
+```
+
+Details: [`packages/adapter-codex`](packages/adapter-codex/README.md),
+[`packages/mcp`](packages/mcp/README.md).
+
+### Claude Code
+
+```sh
+harnesstrim install claude /path/to/project --apply
+```
+
+Copies the skill pack into `.claude/skills` and adds a `PostToolUse` hook (matched to `Bash`) to
+`.claude/settings.json`. The hook runs `harnesstrim hook claude`, so `harnesstrim` must be on PATH;
+reload Claude Code so the hook loads. It then slims noisy Bash output automatically before the model
+sees it. Details: [`packages/adapter-claude`](packages/adapter-claude/README.md).
+
+### Any MCP-capable harness
+
+`harnesstrim mcp` starts a stdio MCP server exposing a `reduce` tool. Register it with any client that
+speaks MCP (Codex, Claude Code, …). See [`packages/mcp`](packages/mcp/README.md).
 
 ## License
 
