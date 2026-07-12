@@ -458,3 +458,15 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   it works**, so the adapter is now live-verified (README caveat removed). Third harness with a
   deterministic hook-based reducer (OpenCode, Claude Code, Hermes), alongside Codex's instruction/MCP
   path. 79 tests passing, typecheck clean on 8 packages. Remaining: **Pi adapter**, Tier B benchmark.
+- **2026-07-12** — **Fidelity metric added to the Tier A benchmark** (prompted by external feedback:
+  "the detail I care about is what survives trimming, not a prettier token chart"). The bench now
+  measures **signal recall** alongside token reduction: each fixture annotates its must-keep lines
+  (the error, failing test, assertion, changed-file headers, summary) in `benchmarks/src/run.ts`, and
+  the runner reports how many survived. It also **audits** dropped lines that look like signal
+  (tight regex — `fail|failure|exception|traceback|assertionerror`, deliberately excluding bare
+  `error`/`warn` to avoid false positives on dependency names like `http-errors` in a collapsed
+  lockfile). Result: **−65% tokens at 100% signal recall (15/15), 0 dropped signal lines**. The
+  standalone `pnpm run bench` now exits non-zero if recall < 100% or any signal line is dropped, so
+  the benchmark doubles as a fidelity gate. README reframed around "what survives" (headline is now
+  "−65% tokens at 100% signal recall") and a new "Signal fidelity" KPI row (measured now, vs the
+  Tier-B/planned quality-retention row). No core/adapter code changed — this is measurement + docs.

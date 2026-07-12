@@ -117,6 +117,7 @@ What HarnessTrim optimizes for, and how each is measured:
 | KPI | Definition | Target | Source |
 | --- | --- | --- | --- |
 | **Tool-output reduction** | 1 − (chars out / chars in) per reduced tool call | ≥ 50% on noisy output | adapter telemetry, benchmark |
+| **Signal fidelity (recall)** | must-keep signal lines surviving reduction / total must-keep | 100% (bench fails otherwise) | Tier A benchmark (measured now) |
 | **Blended session reduction** | total tokens saved / baseline session tokens | 30–50% (model) | end-to-end benchmark (Tier B, planned) |
 | **Quality retention** | task-success parity vs the untrimmed baseline | 100% (no regressions) | Tier B benchmark |
 | **Cache preservation** | share of reductions that leave the cacheable prefix untouched | 100% | design guarantee (reducers only touch volatile output) |
@@ -129,17 +130,25 @@ Two honesty tiers. Keep them separate.
 
 ### Measured (real numbers today)
 
-- **Reducer micro-benchmark (Tier A, no LLM):** −65% tokens across the seed fixtures (`pnpm run bench`).
+The token number alone is not the point — a reducer that drops the one line you needed would post a
+great percentage and ruin the context. So the benchmark measures **both**: token reduction *and*
+**signal fidelity** — of the lines that must survive (the error, the failing test, the assertion, the
+changed files, the summary), how many are kept. It also **audits** any dropped line that looks like
+signal. Headline: **−65% tokens at 100% signal recall** across the seed fixtures (`pnpm run bench`,
+no LLM). The bench fails loudly if signal recall drops below 100% or a signal-looking line is dropped.
 
-  | Fixture | Reducer | Tokens | Reduction |
-  | --- | --- | --- | --- |
-  | jest, mostly-pass | test-output-slim | 408 → 216 | −47.1% |
-  | pytest, mostly-pass | test-output-slim | 395 → 211 | −46.6% |
-  | lockfile-heavy diff | git-diff-slim | 939 → 183 | −80.5% |
-  | **Overall** | | **1742 → 610** | **−65%** |
+  | Fixture | Reducer | Tokens | Reduction | Signal kept |
+  | --- | --- | --- | --- | --- |
+  | jest, mostly-pass | test-output-slim | 408 → 216 | −47.1% | 6/6 |
+  | pytest, mostly-pass | test-output-slim | 395 → 211 | −46.6% | 5/5 |
+  | lockfile-heavy diff | git-diff-slim | 939 → 183 | −80.5% | 4/4 |
+  | **Overall** | | **1742 → 610** | **−65%** | **15/15 (100%)** |
+
+Each fixture's must-keep lines are annotated in [`benchmarks/src/run.ts`](benchmarks/src/run.ts), so
+"what survives" is explicit and reproducible, not a claim.
 
 - **One live OpenCode session:** a real `bash` test run was reduced **1410 → 124 chars (−91.2%)** in the
-  actual pipeline (see PLAN.md §9, Phase 2 hardening).
+  actual pipeline, with the FAIL line and summary preserved (see PLAN.md §9, Phase 2 hardening).
 
 These cover the tool-output lever only, on selected inputs. They are not a session-wide claim.
 
