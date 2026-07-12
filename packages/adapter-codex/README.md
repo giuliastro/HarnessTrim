@@ -35,6 +35,15 @@ stdout (keeping failures/errors/summaries, dropping passing-test noise and gener
 ## Status
 
 The install planner is pure and unit-tested; `install codex` is verified end-to-end (copy + AGENTS.md
-append + idempotent re-run). A live Codex session was **not** exercised (Codex CLI not available in
-the dev environment) — the integration relies on documented Codex behavior (AGENTS.md instructions +
-Agent Skills).
+append + idempotent re-run).
+
+**Live-validated against the real Codex CLI** (codex-cli 0.130, bundled in the ChatGPT desktop app):
+`codex debug prompt-input` — which renders the model-visible prompt — confirms that after
+`install codex --apply`, both the AGENTS.md reduce-pipe instruction (the `harnesstrim:begin` /
+"Token economy" block) and all six project-level `.codex/skills` reach the model's context. This
+confirms Codex reads project-level `.codex/skills` (the global skills dir is `~/.codex/skills`).
+
+Note the distinction from the OpenCode adapter: OpenCode reduces output via a **deterministic hook**,
+whereas the Codex reduction is **instruction-based** — the agent is told to pipe through
+`harnesstrim reduce`, so the actual piping depends on the model following the instruction (the same
+property as any AGENTS.md/rules-based integration).

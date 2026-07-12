@@ -204,10 +204,11 @@ xychart-beta
 ## Status
 
 Phases 0–4 in progress. Shipped: reducers + benchmark, the 6-skill pack, adapters for **OpenCode**
-(runtime plugin, hardened in a live session), **Codex** (skills + AGENTS.md reduce-pipe), and
-**Claude Code** (PostToolUse reducer hook), the `harnesstrim` CLI (doctor / install / preset /
-metrics / reduce / hook / bench), telemetry, and policy presets. Remaining: the **Pi** adapter and
-the Tier B end-to-end benchmark. 71 tests passing, typecheck clean on all packages.
+(runtime plugin, hardened in a live session), **Codex** (skills + AGENTS.md reduce-pipe, live-validated
+via `codex debug prompt-input` that the instruction and skills reach the model), and **Claude Code**
+(PostToolUse reducer hook), the `harnesstrim` CLI (doctor / install / preset / metrics / reduce / hook
+/ bench), telemetry, and policy presets. Remaining: the **Pi** adapter and the Tier B end-to-end
+benchmark. 71 tests passing, typecheck clean on all packages.
 
 ## Layout
 
