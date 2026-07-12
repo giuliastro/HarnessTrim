@@ -1,0 +1,6 @@
+name: harnesstrim
+version: "0.0.1"
+description: >
+  HarnessTrim reducer plugin — slims noisy tool output (test logs, git diffs, build output)
+  before it reaches the model, via the transform_tool_result hook.
+requires_env: []

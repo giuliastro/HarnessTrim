@@ -4,6 +4,7 @@ import type { InstallResult } from "./install.ts";
 import type { MetricsResult } from "./metrics.ts";
 import type { CodexInstallResult } from "./install-codex.ts";
 import type { ClaudeInstallResult } from "./install-claude.ts";
+import type { HermesInstallResult } from "./install-hermes.ts";
 
 const ICON: Record<Severity, string> = { warn: "!", info: "i", ok: "+" };
 
@@ -135,6 +136,40 @@ export function renderClaudeInstall(result: ClaudeInstallResult, apply: boolean)
   lines.push("");
   lines.push("Note: the hook command is `harnesstrim hook claude` — ensure harnesstrim is on PATH.");
   if (!apply) lines.push("Dry run — nothing written. Re-run with `--apply`.");
+  return lines.join("\n");
+}
+
+export function renderHermesInstall(result: HermesInstallResult, apply: boolean): string {
+  const { plan } = result;
+  const lines: string[] = [];
+  lines.push(`${apply ? "Installed" : "Would install"} Hermes Agent plugin`);
+  lines.push("");
+
+  if (plan.alreadyInstalled) {
+    lines.push(`Hermes plugin already installed at ${plan.pluginDest} (no change).`);
+  } else {
+    lines.push(`Plugin -> ${plan.pluginDest}`);
+    if (apply) {
+      lines.push(`  Copied: ${result.copiedFiles.join(", ")}`);
+    } else {
+      lines.push(`  Source: ${plan.pluginSource}`);
+      lines.push(`  Dest:   ${plan.pluginDest}`);
+      lines.push("  (plugin.yaml + __init__.py)");
+    }
+    lines.push("");
+    lines.push("After installing, enable the plugin in Hermes config.yaml:");
+    lines.push("  plugins:");
+    lines.push("    enabled:");
+    lines.push("      - harnesstrim");
+    lines.push("");
+    lines.push("Then restart Hermes. The plugin starts in dry-run mode (logs to stderr).");
+    lines.push("Set HARNESSTRIM_MODE=active in Hermes' environment to reduce tool output.");
+  }
+
+  if (!apply) {
+    lines.push("");
+    lines.push("Dry run — nothing written. Re-run with `--apply`.");
+  }
   return lines.join("\n");
 }
 
