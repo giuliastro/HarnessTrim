@@ -419,3 +419,16 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
     (`skills-source.ts`) locates the repo skill pack (single place to change for published packaging).
   - **71 tests passing** (25 core + 9 opencode + 6 codex + 10 claude + 21 cli), typecheck clean on 6
     packages. Remaining: **Pi adapter**, Tier B end-to-end benchmark, native-telemetry normalization.
+- **2026-07-12** — **Codex adapter live-validated** (the Phase 4 gap I'd flagged is closed). Codex
+  turned out to be installed after all — bundled in the ChatGPT desktop app at
+  `%LOCALAPPDATA%/OpenAI/Codex/bin/codex.exe` (codex-cli 0.130.0-alpha.5), logged in via ChatGPT.
+  Used `codex debug prompt-input` (renders the model-visible prompt as JSON — no model spend) in a
+  scratch project after `install codex --apply`: confirmed the AGENTS.md reduce-pipe instruction
+  ("Token economy (HarnessTrim)" / `harnesstrim:begin`) and all six installed skills appear in the
+  model input. Since the global `~/.codex/skills` holds unrelated skills, the six must come from the
+  **project-level `.codex/skills`** — so the adapter's target directory was correct. Key nuance
+  recorded in the adapter README: Codex reduction is **instruction-based** (model must choose to pipe
+  through `harnesstrim reduce`), unlike OpenCode's **deterministic hook** — an inherent property of
+  AGENTS.md/rules integrations, not a defect. Codex CLI also exposes `plugin`/`mcp`/`mcp-server`
+  subcommands — a future adapter iteration could register the reducer as an MCP server for
+  deterministic, non-instruction reduction. No code change needed; docs updated.
