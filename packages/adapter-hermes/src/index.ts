@@ -5,6 +5,12 @@ import path from "node:path";
  *
  * Hermes has a plugin system with a ``transform_tool_result`` hook that fires
  * after every tool call and before the result enters the model's context.
+ * This hook is:
+ * - Listed in ``VALID_HOOKS`` in the Hermes source (``hermes_cli/plugins.py``)
+ * - Used by the shipped ``security-guidance`` plugin
+ * - Tested in ``tests/test_transform_tool_result_hook.py``
+ * - Wired in ``model_tools.py:1313-1345`` (core loop)
+ *
  * This adapter:
  *   1. copies the Python plugin files (plugin.yaml + __init__.py) into
  *      `~/.hermes/plugins/harnesstrim/` (or `<project>/.hermes/plugins/harnesstrim/`),
