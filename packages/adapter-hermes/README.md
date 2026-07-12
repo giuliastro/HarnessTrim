@@ -43,16 +43,26 @@ reduced. When comfortable, set `HARNESSTRIM_MODE=active` in Hermes' environment.
 ## Architecture
 
 ```
-Hermes tool call → tool executes → transform_tool_result hook
-    → __init__.py:on_tool_result()
-        → if tool == "terminal" && text ≥ minLength && no marker already present
-            → subprocess: harnesstrim reduce --min-length X
-            → if mode == "active": rewrite result.output
-            → if mode == "dryrun":  log to stderr, don't touch
+Hermes tool call → transform_tool_result hook
+  → __init__.py:on_tool_result()
+    → if tool == "terminal" && text ≥ minLength && no marker
+      → subprocess: harnesstrim reduce --min-length X
+      → mode == "active": rewrite result.output
+      → mode == "dryrun":  log to stderr, don't touch
 ```
 
-The reduction logic lives in the shared `@harnesstrim/core` package (TypeScript/Node), invoked via CLI
-subprocess — no duplicate reducer logic in Python.
+### Hook contract
+
+The plugin uses Hermes' built-in [`transform_tool_result`](https://hermes-agent.nousresearch.com/docs/user-guide/features/hooks) hook,
+which fires after every tool call and before the result enters the model's context.
+If the callback returns a string, that string replaces the result the model sees.
+
+This hook:
+- Is listed in `VALID_HOOKS` in the Hermes source (`hermes_cli/plugins.py:135-139`).
+- Is used by the shipped `security-guidance` plugin (`plugins/security-guidance/__init__.py:227-259`).
+- Has dedicated test coverage (`tests/test_transform_tool_result_hook.py`).
+- Runs after `post_tool_call` (observational) and before the result is appended to
+  conversation context (`model_tools.py:1313-1345`).
 
 ## Safety properties
 

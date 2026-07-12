@@ -9,6 +9,19 @@ reduction as a TrimEvent JSON line.
 
 Run the ``harnesstrim reduce`` command via a subprocess so the reducers live in the
 shared TypeScript/Node core rather than being reimplemented in Python.
+
+Hook contract
+-------------
+``transform_tool_result`` is a built-in Hermes plugin hook:
+- ``hermes_cli/plugins.py`` — listed in ``VALID_HOOKS``
+- ``model_tools.py:1313-1345`` — core loop fires it after every tool call;
+  first callback to return a string replaces the result
+- ``plugins/security-guidance/__init__.py`` — shipped plugin uses it
+- ``tests/test_transform_tool_result_hook.py`` — dedicated test coverage
+
+Callback receives: tool_name, args, result, task_id, session_id, tool_call_id,
+turn_id, api_request_id, duration_ms, status, error_type, error_message.
+Return a string to replace the result, or None to leave unchanged.
 """
 
 import json
