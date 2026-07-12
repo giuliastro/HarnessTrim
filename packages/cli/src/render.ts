@@ -2,6 +2,8 @@ import type { Preset } from "@harnesstrim/core";
 import type { DoctorReport, Severity } from "./doctor.ts";
 import type { InstallResult } from "./install.ts";
 import type { MetricsResult } from "./metrics.ts";
+import type { CodexInstallResult } from "./install-codex.ts";
+import type { ClaudeInstallResult } from "./install-claude.ts";
 
 const ICON: Record<Severity, string> = { warn: "!", info: "i", ok: "+" };
 
@@ -74,6 +76,66 @@ export function renderPresetShow(preset: Preset): string {
     "",
     preset.notes,
   ].join("\n");
+}
+
+export function renderCodexInstall(result: CodexInstallResult, apply: boolean): string {
+  const { plan } = result;
+  const lines: string[] = [];
+  const verb = apply ? "Installed" : "Would install";
+  lines.push(`${verb} Codex integration in ${plan.instructionsFile.replace(/AGENTS\.md$/, "")}`.trimEnd());
+  lines.push("");
+
+  lines.push(`Skills -> ${plan.skillsDest}`);
+  for (const s of plan.skills) {
+    const state = s.present ? "already present" : apply ? "copied" : "would copy";
+    lines.push(`  ${s.name.padEnd(18)} ${state}`);
+  }
+  lines.push("");
+
+  const instr =
+    plan.instructionsAction === "present"
+      ? "AGENTS.md already contains the HarnessTrim instruction (no change)."
+      : plan.instructionsAction === "create"
+        ? `AGENTS.md ${apply ? "created" : "would be created"} with the reduce-pipe instruction.`
+        : `Reduce-pipe instruction ${apply ? "appended" : "would be appended"} to AGENTS.md.`;
+  lines.push(instr);
+
+  if (!apply) {
+    lines.push("");
+    lines.push("Dry run — nothing written. Re-run with `--apply`.");
+  }
+  return lines.join("\n");
+}
+
+export function renderClaudeInstall(result: ClaudeInstallResult, apply: boolean): string {
+  const { plan } = result;
+  const lines: string[] = [];
+  lines.push(`${apply ? "Installed" : "Would install"} Claude Code integration`);
+  lines.push("");
+
+  lines.push(`Skills -> ${plan.skillsDest}`);
+  for (const s of plan.skills) {
+    const state = s.present ? "already present" : apply ? "copied" : "would copy";
+    lines.push(`  ${s.name.padEnd(18)} ${state}`);
+  }
+  lines.push("");
+
+  if (plan.settingsAction === "present") {
+    lines.push(`${plan.settingsFile}: PostToolUse reducer hook already present (no change).`);
+  } else {
+    lines.push(
+      `${plan.settingsFile}: PostToolUse hook (matcher Bash) ${apply ? (plan.settingsAction === "create" ? "created" : "added") : "would be added"}.`
+    );
+    if (!apply) {
+      lines.push("");
+      lines.push("Resulting settings.json:");
+      lines.push(JSON.stringify(plan.nextSettings, null, 2));
+    }
+  }
+  lines.push("");
+  lines.push("Note: the hook command is `harnesstrim hook claude` — ensure harnesstrim is on PATH.");
+  if (!apply) lines.push("Dry run — nothing written. Re-run with `--apply`.");
+  return lines.join("\n");
 }
 
 export function renderMetrics(result: MetricsResult): string {

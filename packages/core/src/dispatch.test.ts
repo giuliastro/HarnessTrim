@@ -36,6 +36,17 @@ test("reduceAuto: reduces and reports the reducer name", () => {
   assert.ok(res.output.length < bigTestOutput.length);
 });
 
+test("reduceAuto: never returns output larger than input (safety net)", () => {
+  // A short run of tiny pass lines: collapsing to a marker would grow the text.
+  const tiny = "PASS a\nPASS b\n" + "y".repeat(DEFAULT_MIN_LENGTH);
+  const res = reduceAuto(tiny);
+  assert.ok(res.output.length <= tiny.length);
+  if (res.output.length === tiny.length) {
+    assert.equal(res.changed, false);
+    assert.equal(res.reducer, null);
+  }
+});
+
 test("reduceAuto: idempotent", () => {
   const once = reduceAuto(bigGitDiff).output;
   const twice = reduceAuto(once).output;

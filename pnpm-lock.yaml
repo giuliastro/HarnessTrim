@@ -27,6 +27,14 @@ importers:
         specifier: ^1.0.15
         version: 1.0.21
 
+  packages/adapter-claude:
+    dependencies:
+      '@harnesstrim/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/adapter-codex: {}
+
   packages/adapter-opencode:
     dependencies:
       '@harnesstrim/core':
@@ -39,6 +47,12 @@ importers:
 
   packages/cli:
     dependencies:
+      '@harnesstrim/adapter-claude':
+        specifier: workspace:*
+        version: link:../adapter-claude
+      '@harnesstrim/adapter-codex':
+        specifier: workspace:*
+        version: link:../adapter-codex
       '@harnesstrim/benchmarks':
         specifier: workspace:*
         version: link:../../benchmarks

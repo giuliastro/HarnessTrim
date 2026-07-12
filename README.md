@@ -71,10 +71,10 @@ flowchart TB
     Core --- Skills
 
     classDef done fill:#1f6f3f,stroke:#0d3,color:#fff;
-    class OC,A1,R,D,P,M,S done;
+    class CC,CX,OC,A1,R,D,P,M,S done;
 ```
 
-*Green = shipped for the OpenCode MVP. Other harnesses reuse the same core and skills via their own adapter.*
+*Green = has a shipped adapter (OpenCode, Codex, Claude Code). Pi is the remaining target. All adapters reuse the same core and skills.*
 
 ### The five levers
 
@@ -203,16 +203,20 @@ xychart-beta
 
 ## Status
 
-Phases 0–3 complete (reducers, benchmark, skill pack, OpenCode adapter, CLI, telemetry, presets),
-plus a real-session hardening pass. Current MVP target: **OpenCode** (see `PLAN.md` §5 for why).
-54 tests passing, typecheck clean on all packages.
+Phases 0–4 in progress. Shipped: reducers + benchmark, the 6-skill pack, adapters for **OpenCode**
+(runtime plugin, hardened in a live session), **Codex** (skills + AGENTS.md reduce-pipe), and
+**Claude Code** (PostToolUse reducer hook), the `harnesstrim` CLI (doctor / install / preset /
+metrics / reduce / hook / bench), telemetry, and policy presets. Remaining: the **Pi** adapter and
+the Tier B end-to-end benchmark. 71 tests passing, typecheck clean on all packages.
 
 ## Layout
 
 ```
 packages/core/              deterministic, idempotent reducers + content dispatcher + presets + metrics
 packages/adapter-opencode/  OpenCode plugin: slims tool output + injects compaction handoff + telemetry
-packages/cli/               harnesstrim CLI: doctor, install, preset, metrics, bench
+packages/adapter-codex/     Codex: skill bundle + AGENTS.md reduce-pipe instruction
+packages/adapter-claude/    Claude Code: PostToolUse reducer hook + skill bundle
+packages/cli/               harnesstrim CLI: doctor, install, preset, metrics, reduce, hook, bench
 skills/                     portable Agent Skills (delta-response, debug-log-slim, review-delta,
                             compact-handoff, scaffold-fast, delegate-bulk)
 benchmarks/                 Tier A micro-benchmarks: reducer token-reduction, no LLM involved
@@ -223,18 +227,22 @@ examples/opencode/          minimal opencode.json wiring the adapter (dry-run)
 
 ```sh
 pnpm exec harnesstrim doctor [dir]            # diagnose token-waste signals in a project
-pnpm exec harnesstrim install opencode [dir]  # wire the adapter into opencode.json (dry-run)
-pnpm exec harnesstrim install opencode --apply
+pnpm exec harnesstrim install opencode [dir]  # OpenCode plugin -> opencode.json (dry-run)
 pnpm exec harnesstrim install opencode --preset lean-debug --apply
+pnpm exec harnesstrim install codex [dir]     # Codex: skills + AGENTS.md reduce-pipe (dry-run)
+pnpm exec harnesstrim install claude [dir]    # Claude Code: skills + PostToolUse hook (dry-run)
 pnpm exec harnesstrim preset list             # list policy presets
-pnpm exec harnesstrim preset show lean-review
 pnpm exec harnesstrim metrics [path]          # summarize adapter telemetry (JSONL)
+npm test 2>&1 | pnpm exec harnesstrim reduce  # pipe: slim noisy output (Codex/shell)
 pnpm exec harnesstrim bench                    # run the Tier A reducer micro-benchmark
 ```
 
 - `doctor` flags oversized always-loaded instruction files (CLAUDE.md/AGENTS.md/...), reports
   whether on-demand skills are used, and whether the OpenCode adapter is wired in.
-- `install` is dry-run until `--apply`; `--preset` bakes a policy preset's adapter config in.
+- `install <harness>` is dry-run until `--apply`. Each adapter uses that harness's native surface:
+  OpenCode a `tool.execute.after` plugin, Claude Code a `PostToolUse` hook, Codex an AGENTS.md
+  reduce-pipe instruction. `--preset` (OpenCode) bakes a policy preset's adapter config in.
+- `reduce` is the pipe-friendly reducer (RTK-style) shared across harnesses.
 - `metrics` aggregates the telemetry the adapter emits (off by default) into chars saved per reducer.
 
 ## Try it

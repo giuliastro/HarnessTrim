@@ -1,0 +1,15 @@
+{
+  "name": "@harnesstrim/adapter-codex",
+  "version": "0.0.1",
+  "description": "HarnessTrim adapter for Codex: skill bundle + AGENTS.md reduce-pipe instruction.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "node --test \"src/**/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

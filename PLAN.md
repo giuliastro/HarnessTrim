@@ -394,3 +394,28 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   So the mock-based adapter tests now have a real-session counterpart. `.hardening/` is gitignored
   and reusable for future adapter smoke-tests. Remaining: Phase 4 (Claude Code / Codex / Pi adapters,
   Tier B end-to-end benchmarks) and native-telemetry normalization for vanilla-vs-trimmed comparison.
+- **2026-07-11** — Phase 4 started: **Codex and Claude Code adapters shipped** (Pi still pending).
+  - **Shared reduction surface — `harnesstrim reduce`**: a pipe-friendly CLI (stdin→stdout via
+    `reduceAuto`, RTK-style). This is the portable mechanism for harnesses without a runtime output
+    hook. Surfaced a real bug: on tiny inputs a collapse marker can exceed the lines it replaces, so
+    added a **safety net in `reduceAuto` — never return output larger than the input** (falls back to
+    the original, `changed:false`). New core test covers it.
+  - **adapter-codex** (`packages/adapter-codex`): pure `planCodexInstall` — copies the skill pack to
+    `.codex/skills` and appends a reduce-pipe instruction to `AGENTS.md` (idempotent via an
+    HTML-comment marker). Codex has no tool-output hook, so integration is via its native surfaces
+    (Agent Skills + AGENTS.md), matching the source proposal. `install codex` verified end-to-end
+    (copy + append + idempotent re-run). **Codex CLI not installed in the env → no live session.**
+  - **adapter-claude** (`packages/adapter-claude`): built against the **real Claude Code hooks
+    contract** (researched via the claude-code-guide agent, citing official docs). Key finding:
+    `PostToolUse` fires for every tool and can rewrite what the model sees via
+    `hookSpecificOutput.updatedToolOutput`. So: `buildClaudeHookResponse` (pure hook runtime, exposed
+    as `harnesstrim hook claude`, `--log` for debugging) + `planClaudeInstall` (copies skills to
+    `.claude/skills`, adds a PostToolUse Bash hook to `.claude/settings.json`, preserving existing
+    keys/hooks, idempotent). `install claude` verified end-to-end; hook runtime checked against a
+    realistic payload. **Live gap:** the dev shell's `claude -p` subprocess is unauthenticated, so a
+    full live session (like OpenCode's) could not be run here — documented in the adapter README;
+    verify via `install claude --apply` in a real authenticated project + the hook `--log`.
+  - CLI: `install codex|claude`, `hook claude`, `reduce`. Shared skills-source resolver
+    (`skills-source.ts`) locates the repo skill pack (single place to change for published packaging).
+  - **71 tests passing** (25 core + 9 opencode + 6 codex + 10 claude + 21 cli), typecheck clean on 6
+    packages. Remaining: **Pi adapter**, Tier B end-to-end benchmark, native-telemetry normalization.

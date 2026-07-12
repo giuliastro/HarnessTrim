@@ -5,3 +5,4 @@ dist/
 benchmarks/reports/*.json
 .claude/settings.local.json
 .hardening/
+.hardening-claude/
