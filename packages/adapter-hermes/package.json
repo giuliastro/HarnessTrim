@@ -1,0 +1,18 @@
+{
+  "name": "@harnesstrim/adapter-hermes",
+  "version": "0.0.1",
+  "description": "HarnessTrim adapter for Hermes Agent: transform_tool_result reducer plugin + skill bundle install.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@harnesstrim/core": "workspace:*"
+  },
+  "scripts": {
+    "test": "node --test \"src/**/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}
