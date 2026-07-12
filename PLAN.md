@@ -432,3 +432,17 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   AGENTS.md/rules integrations, not a defect. Codex CLI also exposes `plugin`/`mcp`/`mcp-server`
   subcommands — a future adapter iteration could register the reducer as an MCP server for
   deterministic, non-instruction reduction. No code change needed; docs updated.
+- **2026-07-12** — **MCP reducer server shipped** (`packages/mcp`, `@harnesstrim/mcp`). A stdio MCP
+  server built on `@modelcontextprotocol/sdk` (v1.29, API confirmed by reading the installed types —
+  `McpServer` + `registerTool(name,{title,description,inputSchema:zodShape},cb)` + `StdioServerTransport`).
+  Exposes one tool, `reduce` ({text, minLength?} → slimmed text), delegating to `core.reduceAuto`.
+  Started via a new `harnesstrim mcp` CLI command. This is the deterministic, native alternative to
+  the Codex AGENTS.md pipe instruction, and is reusable by any MCP client (Codex + Claude Code).
+  Verified three ways: unit tests on the pure tool logic, an in-memory MCP client↔server round-trip
+  (`InMemoryTransport`), and a **real stdio handshake** — piped `initialize` + `tools/list` into the
+  exact `node …/cli.ts mcp` command Codex launches and confirmed `reduce` is discovered; also
+  registered/removed it live via `codex mcp add/remove`. 74 tests passing, typecheck clean on 7
+  packages. Registration is left as a documented explicit `codex mcp add` step (not auto-run by
+  `install codex`) since it edits global Codex config. README now documents MCP-tool vs shell-pipe
+  trade-offs. `run-and-reduce` (execute+reduce) intentionally NOT built: it would run commands
+  outside the harness sandbox — the shell pipe already covers pre-context token savings safely.

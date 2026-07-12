@@ -1,0 +1,20 @@
+{
+  "name": "@harnesstrim/mcp",
+  "version": "0.0.1",
+  "description": "HarnessTrim MCP server: a `reduce` tool that slims noisy text, for any MCP-capable harness.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/server.ts",
+  "exports": {
+    ".": "./src/server.ts"
+  },
+  "dependencies": {
+    "@harnesstrim/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.23.0"
+  },
+  "scripts": {
+    "test": "node --test \"src/**/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}
