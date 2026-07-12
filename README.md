@@ -1,10 +1,10 @@
 # HarnessTrim
 
-> One token policy for Claude Code, Codex, OpenCode and Pi.
+> One token policy for Claude Code, Codex, OpenCode, Hermes Agent and Pi.
 
 HarnessTrim is a **cross-harness control plane** for coding agents: a portable skill pack, thin
 per-harness adapters, and a reproducible benchmark suite that together cut input tokens, output
-tokens, and noisy tool output — instead of optimizing just one of those layers the way existing
+tokens, and noisy tool output, instead of optimizing just one of those layers the way existing
 tools do.
 
 Full design rationale and phased roadmap: see [PLAN.md](PLAN.md).
