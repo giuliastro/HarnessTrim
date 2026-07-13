@@ -284,8 +284,16 @@ repo, or link it once:
 
 ```sh
 pnpm install
-pnpm --filter @harnesstrim/cli link --global   # exposes `harnesstrim` on PATH
+# Make the CLI available on PATH (choose one method):
+# Option A — symlink (works on any system):
+ln -sf "$PWD/node_modules/@harnesstrim/cli/bin/harnesstrim.mjs" ~/.local/bin/harnesstrim
+# Option B — pnpm global link (requires pnpm global-bin-dir configured):
+pnpm --filter @harnesstrim/cli link --global
 ```
+
+> **Note:** the CLI is written in TypeScript. The `bin/harnesstrim.mjs` wrapper
+> invokes `tsx` (bundled as a dependency of `@harnesstrim/cli`, installed via
+> `pnpm install`) so the `.ts` source runs on any Node ≥ 22.
 
 Adapters are dry-run by default: run without `--apply` first to see exactly what will change.
 
