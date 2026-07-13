@@ -1,0 +1,9 @@
+{
+  "name": "tierb-task-failing-test",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Tier B fixture task: run the suite, report the failing test.",
+  "scripts": {
+    "test": "node noisy-tests.mjs"
+  }
+}

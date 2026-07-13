@@ -470,3 +470,15 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   the benchmark doubles as a fidelity gate. README reframed around "what survives" (headline is now
   "−65% tokens at 100% signal recall") and a new "Signal fidelity" KPI row (measured now, vs the
   Tier-B/planned quality-retention row). No core/adapter code changed — this is measurement + docs.
+- **2026-07-13** — **Tier B end-to-end framework built** (`benchmarks/tierB/`). Runs the same task
+  through OpenCode twice — vanilla (`opencode run --pure`, plugin off) vs trimmed (adapter active,
+  auto-loaded from the task's `.opencode/plugin/`) — and compares total tokens + task success
+  (quality retention). Recon findings: token usage is extractable (`opencode stats`, session export,
+  or `--format json` events); `--pure` is the clean vanilla toggle. Verified deterministically (no
+  model): the fixture task's `npm test` output reduces **1235 → 519 chars (~58%)** via `harnesstrim
+  reduce` with all signal preserved, and `parse-usage.mjs` correctly extracts tokens+answer from a
+  representative event stream. **Live run pending a reachable model**: the reference model host (the
+  `GMKtec` provider's LAN box, `NucBox_EVO-X2:1234`) was offline/unresolvable at build time (fails
+  DNS and the Windows resolver), and the free cloud model timed out. `MODEL=<id> ./run-e2e.sh`
+  produces the live numbers once a tool-calling model is reachable. Framework + docs only; honest that
+  the end-to-end token/quality figure is not yet measured. Remaining: **Pi adapter**, and this live run.
