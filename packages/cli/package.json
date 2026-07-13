@@ -12,6 +12,7 @@
     "@harnesstrim/adapter-codex": "workspace:*",
     "@harnesstrim/adapter-hermes": "workspace:*",
     "@harnesstrim/benchmarks": "workspace:*",
+    "@harnesstrim/adapter-pi": "workspace:*",
     "@harnesstrim/core": "workspace:*",
     "@harnesstrim/mcp": "workspace:*"
   },

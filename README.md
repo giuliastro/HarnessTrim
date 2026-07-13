@@ -73,10 +73,10 @@ flowchart TB
     Core --- Skills
 
     classDef done fill:#1f6f3f,stroke:#0d3,color:#fff;
-    class CC,CX,OC,HM,A1,R,D,P,M,S done;
+    class CC,CX,OC,HM,PI,A1,R,D,P,M,S done;
 ```
 
-*Green = has a shipped adapter (OpenCode, Codex, Claude Code, Hermes Agent). Pi is the remaining target. All adapters reuse the same core and skills.*
+*Green = has a shipped adapter. All five targets (OpenCode, Codex, Claude Code, Hermes Agent, Pi) now have one, reusing the same core and skills.*
 
 ### The five levers
 
@@ -216,11 +216,13 @@ xychart-beta
 
 Phases 0–4 in progress. Shipped: reducers + benchmark, the 6-skill pack, adapters for **OpenCode**
 (runtime plugin, hardened in a live session), **Codex** (skills + AGENTS.md reduce-pipe, live-validated
-via `codex debug prompt-input`), **Claude Code** (PostToolUse reducer hook), and **Hermes Agent**
-(`transform_tool_result` plugin, verified in a live session), plus an MCP `reduce` server, the
-`harnesstrim` CLI (doctor / install / preset / metrics / reduce / hook / mcp / bench), telemetry, and
-policy presets. Remaining: the **Pi** adapter and the Tier B end-to-end benchmark. 79 tests passing,
-typecheck clean on all packages.
+via `codex debug prompt-input`), **Claude Code** (PostToolUse reducer hook), **Hermes Agent**
+(`transform_tool_result` plugin, verified in a live session), and **Pi** (`tool_result` extension),
+plus an MCP `reduce` server, the `harnesstrim` CLI (doctor / install / preset / metrics / reduce /
+hook / mcp / bench), telemetry, and policy presets. All five target harnesses now have an adapter.
+An end-to-end Tier B run on OpenCode confirmed the reducer cuts freshly-billed tool-output tokens
+~60% without busting the prompt cache or breaking the task; broader multi-task Tier B runs are the
+main remaining work. 83 tests passing, typecheck clean on all packages.
 
 ## Layout
 
@@ -230,6 +232,7 @@ packages/adapter-opencode/  OpenCode plugin: slims tool output + injects compact
 packages/adapter-codex/     Codex: skill bundle + AGENTS.md reduce-pipe instruction
 packages/adapter-claude/    Claude Code: PostToolUse reducer hook + skill bundle
 packages/adapter-hermes/    Hermes Agent: transform_tool_result reducer plugin (Python)
+packages/adapter-pi/        Pi: tool_result reducer extension (TypeScript)
 packages/mcp/               MCP server exposing a `reduce` tool (Codex, Claude Code, any MCP client)
 packages/cli/               harnesstrim CLI: doctor, install, preset, metrics, reduce, hook, mcp, bench
 skills/                     portable Agent Skills (delta-response, debug-log-slim, review-delta,
@@ -247,6 +250,8 @@ pnpm exec harnesstrim install opencode --preset lean-debug --apply
 pnpm exec harnesstrim install codex [dir]     # Codex: skills + AGENTS.md reduce-pipe (dry-run)
 pnpm exec harnesstrim install claude [dir]    # Claude Code: skills + PostToolUse hook (dry-run)
 pnpm exec harnesstrim install hermes [dir]    # Hermes Agent: transform_tool_result plugin (dry-run)
+pnpm exec harnesstrim install pi [dir]        # Pi: tool_result extension (dry-run)
+pnpm exec harnesstrim install hermes [dir]    # Hermes Agent: transform_tool_result plugin (dry-run)
 pnpm exec harnesstrim preset list             # list policy presets
 pnpm exec harnesstrim metrics [path]          # summarize adapter telemetry (JSONL)
 npm test 2>&1 | pnpm exec harnesstrim reduce  # pipe: slim noisy output (Codex/shell)
@@ -257,8 +262,8 @@ pnpm exec harnesstrim bench                    # run the Tier A reducer micro-be
   whether on-demand skills are used, and whether the OpenCode adapter is wired in.
 - `install <harness>` is dry-run until `--apply`. Each adapter uses that harness's native surface:
   OpenCode a `tool.execute.after` plugin, Claude Code a `PostToolUse` hook, Hermes a
-  `transform_tool_result` plugin, Codex an AGENTS.md reduce-pipe instruction. `--preset` (OpenCode)
-  bakes a policy preset's adapter config in.
+  `transform_tool_result` plugin, Pi a `tool_result` extension, Codex an AGENTS.md reduce-pipe
+  instruction. `--preset` (OpenCode) bakes a policy preset's adapter config in.
 - `reduce` is the pipe-friendly reducer (RTK-style) shared across harnesses.
 - `metrics` aggregates the telemetry the adapter emits (off by default) into chars saved per reducer.
 
@@ -343,6 +348,18 @@ plugins:
 Restart Hermes. It starts in `dryrun` (logs to stderr what it *would* slim); set
 `HARNESSTRIM_MODE=active` in Hermes' environment to actually reduce. Details:
 [`packages/adapter-hermes`](packages/adapter-hermes/README.md).
+
+### Pi
+
+```sh
+harnesstrim install pi --apply             # <project>/.pi/extensions/harnesstrim/
+harnesstrim install pi ~ --apply           # global: ~/.pi/... (pass your home dir)
+```
+
+Copies a TypeScript extension that hooks Pi's `tool_result` and slims noisy output via
+`harnesstrim reduce` (so `harnesstrim` must be on PATH). It starts in `dryrun`; set
+`HARNESSTRIM_MODE=active` in Pi's environment to reduce. Details:
+[`packages/adapter-pi`](packages/adapter-pi/README.md).
 
 ### Any MCP-capable harness
 

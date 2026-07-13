@@ -494,3 +494,18 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   small tool output — savings scale with noisy-output volume vs fixed overhead. Single anecdotal run;
   `run-e2e.sh` + `sum-session-tokens.mjs` are the reproducible harness for larger/multi-run studies.
   Remaining: **Pi adapter**; broader multi-tool-call Tier B runs.
+- **2026-07-13** — **Pi adapter shipped** (`packages/adapter-pi`) — the fifth and last target harness.
+  API confirmed from Pi's extension docs (not guessed): extensions are `export default (pi:
+  ExtensionAPI) => pi.on(event, handler)` loaded from `~/.pi/agent/extensions/` or
+  `<project>/.pi/extensions/`, and the **`tool_result`** event fires after a tool finishes and lets
+  handlers return a patch (`content`/`details`/`isError`) — Pi's deterministic tool-output hook, like
+  OpenCode's `tool.execute.after`. The shipped extension (`extension/harnesstrim.ts`) is
+  self-contained (shells out to `harnesstrim reduce`, no workspace imports) so it installs anywhere;
+  mode dryrun(default)/active/off + minLength via env, marker-guarded against double reduction.
+  `planPiInstall` (pure, unit-tested) + `install-pi.ts` runner copy it into `.pi/extensions/harnesstrim/`
+  (idempotent via `.installed`). CLI: `install pi`. **Pi CLI not installed in the env → no live
+  session** (honest, like Codex-before-it-turned-up); planner tested, extension syntax-checked, hook
+  contract doc-confirmed. 83 tests passing, typecheck clean on 9 packages. All five harnesses now have
+  adapters (OpenCode/Claude/Hermes/Pi via deterministic hooks; Codex via instruction + MCP tool).
+  Remaining project work: broader multi-tool-call Tier B runs; optional live Pi hardening once the CLI
+  is available.

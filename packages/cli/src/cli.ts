@@ -6,6 +6,7 @@ import { inspect } from "./doctor.ts";
 import { runInstallOpencode } from "./install.ts";
 import { runInstallCodex } from "./install-codex.ts";
 import { runInstallClaude } from "./install-claude.ts";
+import { runInstallPi } from "./install-pi.ts";
 import { runInstallHermes } from "./install-hermes.ts";
 import { buildClaudeHookResponse } from "@harnesstrim/adapter-claude";
 import { loadMetrics, DEFAULT_METRICS_PATH } from "./metrics.ts";
@@ -16,6 +17,7 @@ import {
   renderCodexInstall,
   renderClaudeInstall,
   renderHermesInstall,
+  renderPiInstall,
   renderMetrics,
   renderPresetList,
   renderPresetShow,
@@ -33,6 +35,8 @@ Usage:
   harnesstrim install claude [dir]         Install skills + PostToolUse reducer hook (dry-run)
                             --apply         Actually write the change
   harnesstrim install hermes [dir]         Install Hermes plugin (dry-run)
+                            --apply         Actually write the change
+  harnesstrim install pi [dir]             Install Pi tool_result extension (dry-run)
                             --apply         Actually write the change
   harnesstrim hook claude                  PostToolUse hook runtime (reads Claude JSON on stdin)
   harnesstrim preset list                  List policy presets
@@ -96,7 +100,11 @@ async function main(argv: string[]): Promise<number> {
         console.log(renderHermesInstall(runInstallHermes(dir, apply), apply));
         return 0;
       }
-      console.error(`Unknown install target: ${target ?? "(none)"}. Supported: opencode, codex, claude, hermes.`);
+      if (target === "pi") {
+        console.log(renderPiInstall(runInstallPi(dir, apply), apply));
+        return 0;
+      }
+      console.error(`Unknown install target: ${target ?? "(none)"}. Supported: opencode, codex, claude, hermes, pi.`);
       return 1;
     }
     case "hook": {

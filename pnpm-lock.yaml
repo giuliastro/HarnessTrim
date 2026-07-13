@@ -51,6 +51,8 @@ importers:
         specifier: latest
         version: 1.17.18
 
+  packages/adapter-pi: {}
+
   packages/cli:
     dependencies:
       '@harnesstrim/adapter-claude':
@@ -62,6 +64,9 @@ importers:
       '@harnesstrim/adapter-hermes':
         specifier: workspace:*
         version: link:../adapter-hermes
+      '@harnesstrim/adapter-pi':
+        specifier: workspace:*
+        version: link:../adapter-pi
       '@harnesstrim/benchmarks':
         specifier: workspace:*
         version: link:../../benchmarks

@@ -4,6 +4,7 @@ import type { InstallResult } from "./install.ts";
 import type { MetricsResult } from "./metrics.ts";
 import type { CodexInstallResult } from "./install-codex.ts";
 import type { ClaudeInstallResult } from "./install-claude.ts";
+import type { PiInstallResult } from "./install-pi.ts";
 import type { HermesInstallResult } from "./install-hermes.ts";
 
 const ICON: Record<Severity, string> = { warn: "!", info: "i", ok: "+" };
@@ -164,6 +165,34 @@ export function renderHermesInstall(result: HermesInstallResult, apply: boolean)
     lines.push("");
     lines.push("Then restart Hermes. The plugin starts in dry-run mode (logs to stderr).");
     lines.push("Set HARNESSTRIM_MODE=active in Hermes' environment to reduce tool output.");
+  }
+
+  if (!apply) {
+    lines.push("");
+    lines.push("Dry run — nothing written. Re-run with `--apply`.");
+  }
+  return lines.join("\n");
+}
+
+export function renderPiInstall(result: PiInstallResult, apply: boolean): string {
+  const { plan } = result;
+  const lines: string[] = [];
+  lines.push(`${apply ? "Installed" : "Would install"} Pi extension`);
+  lines.push("");
+
+  if (plan.alreadyInstalled) {
+    lines.push(`Pi extension already installed at ${plan.extensionDest} (no change).`);
+  } else {
+    lines.push(`Extension -> ${plan.extensionDest}`);
+    if (apply) {
+      lines.push(`  Copied: ${result.copiedFiles.join(", ")}`);
+    } else {
+      lines.push(`  Source: ${plan.extensionSource}`);
+      lines.push("  (harnesstrim.ts + .installed marker)");
+    }
+    lines.push("");
+    lines.push("The extension hooks Pi's `tool_result` and needs `harnesstrim` on PATH.");
+    lines.push("It starts in dry-run (logs to stderr); set HARNESSTRIM_MODE=active to reduce.");
   }
 
   if (!apply) {
