@@ -1,22 +1,25 @@
 #!/usr/bin/env bash
 # Tier B end-to-end benchmark: run the SAME task through OpenCode twice — once vanilla
-# (--pure, HarnessTrim disabled) and once trimmed (adapter active) — and compare total
-# token usage and whether the task still succeeded (quality retention).
+# (--pure, HarnessTrim disabled) and once trimmed (adapter active) — and compare token
+# usage and whether the task still succeeded (quality retention).
 #
-# Requires a reachable, tool-calling model. Pass the OpenCode model id via MODEL, e.g.:
-#   MODEL=GMKtec/qwen/qwen3-coder-next ./run-e2e.sh
+#   MODEL=opencode/deepseek-v4-flash-free ./run-e2e.sh
 #
-# The token number is model-dependent and this runs each condition once, so treat a
-# single run as anecdotal, not a statistical claim. The deterministic tool-output
-# reduction for this task (no model needed) is ~58% — see README.md.
+# Notes learned from live runs:
+#  - `opencode run --format json` HANGS on agentic (tool-calling) runs when redirected,
+#    so we run in streaming mode and read token counts from `opencode export <sessionID>`
+#    (summed by sum-session-tokens.mjs) instead.
+#  - This runs each condition once; treat a single run as anecdotal, not statistical.
+#  - The deterministic per-task tool-output reduction (no model) is ~58%; see README.md.
 set -uo pipefail
 
 MODEL="${MODEL:-}"
 if [ -z "$MODEL" ]; then
-  echo "Set MODEL to an OpenCode model id, e.g. MODEL=GMKtec/qwen/qwen3-coder-next $0" >&2
+  echo "Set MODEL to an OpenCode model id, e.g. MODEL=opencode/deepseek-v4-flash-free $0" >&2
   exit 2
 fi
 
+OPENCODE="${OPENCODE:-opencode}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TASK_DIR="$SCRIPT_DIR/task-failing-test"
 OUT_DIR="$SCRIPT_DIR/reports"
@@ -27,30 +30,33 @@ EXPECTED='handles concurrent writes without deadlock'
 
 run_condition() {
   local label="$1"; shift
-  local extra=("$@")
-  local log="$OUT_DIR/run-$label.jsonl"
-  echo "=== $label run (model=$MODEL) ==="
-  ( cd "$TASK_DIR" && opencode run -m "$MODEL" --format json "${extra[@]}" "$PROMPT" ) >"$log" 2>"$OUT_DIR/run-$label.err" || true
-  node "$SCRIPT_DIR/parse-usage.mjs" "$log" >"$OUT_DIR/usage-$label.json" || true
-  local total
-  total="$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).totalTokens)}catch{console.log('null')}" "$OUT_DIR/usage-$label.json")"
-  local ok="no"
-  if grep -q "$EXPECTED" "$log"; then ok="yes"; fi
-  echo "  total tokens: $total | task succeeded (named the failing test): $ok"
-  echo "$label $total $ok"
+  echo "=== $label run (model=$MODEL) ===" >&2
+  ( cd "$TASK_DIR" && timeout 300 "$OPENCODE" run -m "$MODEL" "$@" "$PROMPT" ) >"$OUT_DIR/run-$label.log" 2>&1 || true
+
+  local ok="no"; grep -q "$EXPECTED" "$OUT_DIR/run-$label.log" && ok="yes"
+
+  # Newest session = the run we just did.
+  local sid; sid="$( ( cd "$TASK_DIR" && "$OPENCODE" session list 2>/dev/null ) | grep -oE '^ses_[A-Za-z0-9]+' | head -1)"
+  local billed="?"
+  if [ -n "$sid" ]; then
+    ( cd "$TASK_DIR" && "$OPENCODE" export "$sid" 2>/dev/null ) >"$OUT_DIR/session-$label.json"
+    node "$SCRIPT_DIR/sum-session-tokens.mjs" "$OUT_DIR/session-$label.json" >"$OUT_DIR/tokens-$label.json" 2>/dev/null || true
+    billed="$(node -e "try{const t=require('fs').readFileSync(process.argv[1],'utf8');const j=JSON.parse(t);console.log(j.billedTokens+' (fresh input '+(j.input-j.cacheRead)+')')}catch{console.log('?')}" "$OUT_DIR/tokens-$label.json")"
+  fi
+  echo "  success=$ok  billedTokens=$billed  session=$sid"
+  echo "$label|$ok|$billed"
 }
 
 echo "Task: $PROMPT"
 echo "Expected failing test: $EXPECTED"
 echo
-V=$(run_condition "vanilla" --pure | tail -1)
-T=$(run_condition "trimmed" | tail -1)
+V="$(run_condition vanilla --pure | tail -1)"
+T="$(run_condition trimmed | tail -1)"
 
 echo
-echo "=== summary ==="
-echo "condition  totalTokens  success"
+echo "=== summary (condition | success | billedTokens) ==="
 echo "$V"
 echo "$T"
 echo
-echo "Raw event logs + parsed usage are in $OUT_DIR/. Token counts are model-dependent and"
-echo "single-run; the deterministic per-task reduction (~58% on tool output) is in README.md."
+echo "Logs, session exports, and token sums are in $OUT_DIR/. Single-run and model-dependent;"
+echo "see README.md for the reference live result and honest interpretation."

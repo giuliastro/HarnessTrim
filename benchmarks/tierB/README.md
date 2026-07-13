@@ -43,7 +43,28 @@ model-dependent and this runs each condition once, so treat one run as anecdotal
   model — a concrete preview of what the trimmed run feeds the model instead of the raw dump.
 - `parse-usage.mjs` correctly extracts tokens + answer from a representative event stream.
 
-**Pending a reachable model:** the live vanilla-vs-trimmed token/quality numbers. At build time the
-reference model host (a LAN box behind the `GMKtec` provider) was offline/unresolvable, so the
-end-to-end run has not been executed yet. Point `MODEL` at any reachable tool-calling model and run
-the command above to produce it.
+## Live result (2026-07-13)
+
+First real end-to-end run, model `opencode/deepseek-v4-flash-free` (OpenCode Zen), one run per
+condition. **Both runs succeeded** — each correctly named the failing test, so quality was retained.
+
+| Metric | Vanilla (`--pure`) | Trimmed | Δ |
+| --- | --- | --- | --- |
+| Fresh input tokens (non-cache) | 1254 | 507 | **−59.6%** |
+| Total input (incl. cache) | 29,286 | 28,539 | −2.6% |
+| Cache read | 28,032 | 28,032 | 0 (prefix untouched) |
+| Output / reasoning | 210 / 210 | 210 / 192 | ~same |
+| Total billed tokens | 29,706 | 28,941 | **−2.6%** |
+
+Reading it honestly:
+- On the **freshly-billed input** (where the tool output lands) the reduction is **~60%**, matching the
+  deterministic tool-output shrink (1297 → 519 chars). That is the real per-tool-call win.
+- On the **session total** it is only −2.6%, because OpenCode's fixed system prompt (~28k tokens,
+  served from cache) dwarfs a single small tool output. The saving scales with how much noisy tool
+  output a session produces relative to that fixed overhead — a trivial one-tool-call task is the
+  worst case for the ratio, not the best.
+- **Cache read is identical** in both runs: the reducer left the cacheable prefix untouched, so it
+  did not bust the prompt cache (validating the cache-preservation KPI live).
+
+This is a single anecdotal run on a tiny task, not a statistical claim. A fuller picture needs
+larger, multi-tool-call tasks and several runs; `run-e2e.sh` is the harness to produce them.

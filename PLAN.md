@@ -482,3 +482,15 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   DNS and the Windows resolver), and the free cloud model timed out. `MODEL=<id> ./run-e2e.sh`
   produces the live numbers once a tool-calling model is reachable. Framework + docs only; honest that
   the end-to-end token/quality figure is not yet measured. Remaining: **Pi adapter**, and this live run.
+- **2026-07-13** — **Tier B live run executed** (after the user updated the OpenCode CLI 1.14→1.17.18,
+  which matches our adapter types). Model `opencode/deepseek-v4-flash-free` (Zen). Finding: agentic
+  runs hang under `--format json` + redirect, but **streaming works** — so token counts come from
+  `opencode export <sessionID>` (summed by `sum-session-tokens.mjs`), not the JSON event stream.
+  Result on the one-tool-call task (both runs correctly named the failing test → quality retained):
+  fresh non-cache input **1254 → 507 (−59.6%)**, total billed **29,706 → 28,941 (−2.6%)**, and
+  **cache read identical (28,032)** in both — the reducer did not bust the prompt cache (cache-
+  preservation KPI validated live). Honest framing: the ~60% is on the freshly-billed tool-output
+  tokens; the 2.6% session total reflects that OpenCode's ~28k cached system prompt dwarfs a single
+  small tool output — savings scale with noisy-output volume vs fixed overhead. Single anecdotal run;
+  `run-e2e.sh` + `sum-session-tokens.mjs` are the reproducible harness for larger/multi-run studies.
+  Remaining: **Pi adapter**; broader multi-tool-call Tier B runs.
