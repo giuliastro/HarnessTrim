@@ -36,9 +36,13 @@ PLUGIN_DIR = Path(__file__).parent
 CONFIG_DEFAULTS = {
     "mode": "dryrun",       # "dryrun" | "active" | "off"
     "minLength": 400,
-    "telemetry": False,
+    "telemetry": False,     # off by default (privacy); opt in with HARNESSTRIM_TELEMETRY
     "debug": False,
 }
+
+# Where the plugin writes TrimEvent JSONL lines (read by `harnesstrim metrics`) when
+# telemetry is enabled. Under the Hermes home dir so metrics survive across sessions.
+METRICS_PATH = Path.home() / ".hermes" / "harnesstrim-metrics.jsonl"
 
 # Tool types whose output we consider for reduction.
 REDUCER_TOOLS = frozenset({
@@ -81,35 +85,45 @@ def _find_harnesstrim_cli() -> str | None:
     return None
 
 
-def _call_reducer(text: str, min_length: int) -> str:
-    """Shell out to ``harnesstrim reduce`` and return the slimmed text.
+def _call_reducer(text: str, min_length: int) -> tuple[str, str | None]:
+    """Shell out to ``harnesstrim reduce`` and return (slimmed_text, reducer_name).
 
-    Falls back to the original text if the CLI cannot be found or the pipe fails.
+    Falls back to (original_text, None) if the CLI cannot be found or the pipe fails.
+    The reducer name is parsed from the ``--stats`` stderr line (e.g. ``test-output-slim``),
+    used only for telemetry when enabled.
     """
     cli = _find_harnesstrim_cli()
     if cli is None:
         # We are likely in a plugin context without the CLI on PATH.
         # Fall back to a bundler-aware path (the plugin ships alongside the monorepo?).
         # For now, silently pass through.
-        return text
+        return (text, None)
 
     if len(text) < min_length:
-        return text
+        return (text, None)
 
     try:
         result = subprocess.run(
-            [cli, "reduce", "--min-length", str(min_length)],
+            [cli, "reduce", "--min-length", str(min_length), "--stats"],
             input=text,
             capture_output=True,
             text=True,
             timeout=30,
         )
         if result.returncode == 0 and result.stdout:
-            return result.stdout.rstrip("\n")
+            reducer = None
+            # stderr: "[harnesstrim reduce] <reducer>: <before> -> <after> chars"
+            for line in result.stderr.splitlines():
+                line = line.strip()
+                if line.startswith("[harnesstrim reduce]"):
+                    rest = line[len("[harnesstrim reduce] "):]
+                    if ":" in rest and "no reduction" not in rest:
+                        reducer = rest.split(":")[0].strip()
+            return (result.stdout.rstrip("\n"), reducer)
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         pass
 
-    return text
+    return (text, None)
 
 
 def on_tool_result(tool_name, args, result, **kwargs):
@@ -152,7 +166,7 @@ def on_tool_result(tool_name, args, result, **kwargs):
     if any(marker in text for marker in HERMES_TRIM_MARKERS):
         return None
 
-    after = _call_reducer(text, cfg["minLength"])
+    after, reducer = _call_reducer(text, cfg["minLength"])
 
     if after == text:
         return None  # no change — let other handlers (if any) run
@@ -168,12 +182,39 @@ def on_tool_result(tool_name, args, result, **kwargs):
             )
         return None  # dryrun: don't mutate the result
 
-    # active mode: rewrite the result
+    # active mode: rewrite the result (+ telemetry, only when opted in)
+    if cfg["telemetry"]:
+        _write_metric(tool_name, reducer, before_len, len(after))
+
     if isinstance(payload, dict):
         payload["output"] = after
-        # Preserve the original raw output for debugging
+        # Preserve the original raw output length for debugging
         if cfg["telemetry"]:
             payload.setdefault("metadata", {})["_harnesstrim_before"] = before_len
         return json.dumps(payload, ensure_ascii=False)
     else:
         return after
+
+
+def _write_metric(tool: str, reducer: str | None, before: int, after: int) -> None:
+    """Append one TrimEvent JSONL line to METRICS_PATH (read by `harnesstrim metrics`).
+
+    Only called in active mode when telemetry is explicitly enabled. Creates the parent
+    directory lazily and swallows any error — telemetry must never crash the plugin.
+    """
+    import datetime as _dt
+
+    event = {
+        "ts": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+        "harness": "hermes",
+        "tool": tool,
+        "reducer": reducer,
+        "beforeChars": before,
+        "afterChars": after,
+    }
+    try:
+        METRICS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(METRICS_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(event, ensure_ascii=False) + "\n")
+    except OSError:
+        pass  # telemetry must never crash the plugin

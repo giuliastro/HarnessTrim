@@ -34,11 +34,14 @@ Then restart Hermes.
 |---------|---------|-------------|
 | `HARNESSTRIM_MODE` | `dryrun` | `dryrun` = log reductions to stderr, don't touch output. `active` = actually reduce. `off` = disable. |
 | `HARNESSTRIM_MINLENGTH` | `400` | Minimum output length before attempting reduction. |
-| `HARNESSTRIM_TELEMETRY` | `false` | Record metrics to the plugin's telemetry file. |
+| `HARNESSTRIM_TELEMETRY` | `false` | When on (and in `active` mode), append a `TrimEvent` JSONL line per reduction to `~/.hermes/harnesstrim-metrics.jsonl`. |
 | `HARNESSTRIM_DEBUG` | `false` | Verbose logging. |
 
 Start with `dryrun` (the default). Check stderr for `[harnesstrim]` lines to see what *would* be
 reduced. When comfortable, set `HARNESSTRIM_MODE=active` in Hermes' environment.
+
+Telemetry is **off by default**. With `HARNESSTRIM_TELEMETRY=1` and `active` mode, each reduction is
+recorded; read the aggregate with `harnesstrim metrics ~/.hermes/harnesstrim-metrics.jsonl`.
 
 ## Architecture
 

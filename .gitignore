@@ -9,3 +9,7 @@ benchmarks/tierB/task-failing-test/harnesstrim-metrics.jsonl
 .hardening/
 .hardening-claude/
 .hardening-codex/
+
+# Python
+__pycache__/
+*.pyc
