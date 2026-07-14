@@ -287,7 +287,25 @@ pnpm install
 pnpm --filter @harnesstrim/cli link --global   # exposes `harnesstrim` on PATH
 ```
 
-Adapters are dry-run by default: run without `--apply` first to see exactly what will change.
+The **installer** is a preview until you pass `--apply`: run it without `--apply` first to see exactly
+what files it would change. That is separate from each adapter's **runtime reduction mode** below.
+
+### Reduction mode & telemetry (per adapter)
+
+Once installed, does the adapter actually slim output, and does it record metrics? This differs by
+harness. "dry-run mode" here means the adapter logs what it *would* slim without changing anything.
+
+| Harness | Reduces after install? | Make reduction permanent | Telemetry (metrics) |
+| --- | --- | --- | --- |
+| OpenCode | **Yes** — plugin `mode` defaults to `active` | already permanent in `opencode.json`; set `"mode": "dryrun"` there to only preview | off; set plugin option `"telemetry": true` (+ optional `telemetryPath`), read with `harnesstrim metrics <path>` |
+| Claude Code | **Yes** — the `PostToolUse` hook reduces once loaded (no dry-run mode) | permanent once in `.claude/settings.json` | none (the hook does not emit metrics) |
+| Codex | No automatic reduction — the model pipes through `harnesstrim reduce` or calls the MCP `reduce` tool | permanent (the `AGENTS.md` instruction / MCP registration persists) | via the MCP/pipe path, not an adapter emitter |
+| Hermes | **No** — starts in `dryrun` | set `HARNESSTRIM_MODE=active` **persistently** (your shell profile or Hermes' service environment, not a one-off `export`) | off; `HARNESSTRIM_TELEMETRY=1` writes `~/.hermes/harnesstrim-metrics.jsonl`, read with `harnesstrim metrics ~/.hermes/harnesstrim-metrics.jsonl` |
+| Pi | **No** — starts in `dryrun` | set `HARNESSTRIM_MODE=active` **persistently** in Pi's environment | none yet (the extension only reduces) |
+
+Guidance: for the dry-run adapters (Hermes, Pi) keep the default while you confirm it slims the right
+things (watch stderr for `[harnesstrim] dryrun ...` lines), then flip to `active` persistently.
+Telemetry is **off by default everywhere**; enable it only where you want a metrics trail.
 
 ### OpenCode
 
@@ -295,9 +313,10 @@ Adapters are dry-run by default: run without `--apply` first to see exactly what
 harnesstrim install opencode /path/to/project --apply
 ```
 
-Wires the plugin into `opencode.json`. It reduces tool output automatically via `tool.execute.after`
-— no per-command action needed. Start with `"mode": "dryrun"` in the plugin options to preview, then
-switch to `"active"`. Details: [`packages/adapter-opencode`](packages/adapter-opencode/README.md),
+Wires the plugin into `opencode.json`. It reduces tool output automatically via `tool.execute.after`,
+no per-command action needed. The plugin defaults to `"mode": "active"` (reduces immediately); set
+`"mode": "dryrun"` in the plugin options first if you want to preview before enabling. Details:
+[`packages/adapter-opencode`](packages/adapter-opencode/README.md),
 example: [`examples/opencode`](examples/opencode/).
 
 ### Codex
