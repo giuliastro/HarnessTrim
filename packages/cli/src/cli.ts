@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
 import fs from "node:fs";
+import os from "node:os";
 import { getPreset, listPresets } from "@harnesstrim/core";
 import { inspect } from "./doctor.ts";
 import { runInstallOpencode } from "./install.ts";
@@ -81,7 +82,10 @@ async function main(argv: string[]): Promise<number> {
     }
     case "install": {
       const target = rest[0];
-      const dir = rest[1] ?? process.cwd();
+      // Hermes uses the user-level Hermes home by default; other adapters keep
+      // their project-directory default. Pass an explicit directory for a
+      // project-local or alternate-profile installation.
+      const dir = rest[1] ?? (target === "hermes" ? os.homedir() : process.cwd());
       const apply = values.apply === true;
       if (target === "opencode") {
         const result = runInstallOpencode(dir, apply, values.preset);

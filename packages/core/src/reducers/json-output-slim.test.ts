@@ -71,6 +71,14 @@ test("json-output-slim: handles embedded JSON blocks", () => {
   assert.match(result.output, /Some output after/);
 });
 
+test("json-output-slim: reduces every embedded JSON block", () => {
+  const array = JSON.stringify(Array.from({ length: 25 }, (_, i) => ({ id: i })));
+  const input = `First block:\n${array}\nSecond block:\n${array}`;
+  const result = jsonOutputSlim.reduce(input);
+  assert.equal(result.changed, true);
+  assert.equal((result.output.match(/array with 25 total items/g) ?? []).length, 2);
+});
+
 test("json-output-slim: nested JSON with payload array", () => {
   const result = jsonOutputSlim.reduce(nestedJson);
   assert.equal(result.changed, true);

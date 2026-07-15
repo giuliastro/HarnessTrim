@@ -4,3 +4,4 @@ export { gitDiffSlim } from "./git-diff-slim.ts";
 export { genericTextSlim } from "./generic-text-slim.ts";
 export { jsonOutputSlim } from "./json-output-slim.ts";
 export { fileListingSlim } from "./file-listing-slim.ts";
+export { cronOutputSlim } from "./cron-output-slim.ts";

@@ -38,11 +38,33 @@ test("pickReducer: detects JSON objects", () => {
   assert.equal(pickReducer(jsonObj)?.name, "json-output-slim");
 });
 
+test("pickReducer: detects Hermes cron output with archived prompt", () => {
+  const cron = `# Cron Job: report\n\n## Prompt\n\n${"skill instructions\n".repeat(40)}\n## Response\n\nDone.`;
+  assert.equal(pickReducer(cron)?.name, "cron-output-slim");
+});
+
 test("pickReducer: detects file listings", () => {
   const listing =
     "total 128\n" +
     Array.from({ length: 20 }, (_, i) => `-rw-r--r--  1 user group  123 Jul 15 10:00 file-${i}.ts`).join("\n");
   assert.equal(pickReducer(listing)?.name, "file-listing-slim");
+});
+
+test("pickReducer: detects search_files listing output", () => {
+  const listing = Array.from(
+    { length: 30 },
+    (_, i) => `src/file-${i}.ts:${i + 1}|const value${i} = ${i};`,
+  ).join("\n");
+  assert.equal(pickReducer(listing)?.name, "file-listing-slim");
+});
+
+test("reduceAuto: preserves long Markdown tables", () => {
+  const table = ["# Report", "", "| Name | Value |", "| --- | --- |"];
+  for (let i = 0; i < 30; i++) table.push(`| row-${i} | ${i} |`);
+  const input = table.join("\n");
+  const result = reduceAuto(input, 50);
+  assert.notEqual(result.reducer, "file-listing-slim");
+  assert.match(result.output, /\| row-15 \| 15 \|/);
 });
 
 test("pickReducer: returns null for unrelated prose", () => {

@@ -146,25 +146,20 @@ export function renderHermesInstall(result: HermesInstallResult, apply: boolean)
   lines.push(`${apply ? "Installed" : "Would install"} Hermes Agent plugin`);
   lines.push("");
 
-  if (plan.alreadyInstalled) {
-    lines.push(`Hermes plugin already installed at ${plan.pluginDest} (no change).`);
-  } else {
-    lines.push(`Plugin -> ${plan.pluginDest}`);
-    if (apply) {
-      lines.push(`  Copied: ${result.copiedFiles.join(", ")}`);
-    } else {
-      lines.push(`  Source: ${plan.pluginSource}`);
-      lines.push(`  Dest:   ${plan.pluginDest}`);
-      lines.push("  (plugin.yaml + __init__.py)");
+  lines.push(`Plugin -> ${plan.pluginDest}`);
+  if (apply) {
+    lines.push(`  ${plan.alreadyInstalled ? "Refreshed" : "Copied"}: ${result.copiedFiles.join(", ")}`);
+    if (result.enabled === true) {
+      lines.push("  Enabled: harnesstrim");
+    } else if (result.enableMessage) {
+      lines.push(`  Enable manually: ${result.enableMessage}`);
     }
     lines.push("");
-    lines.push("After installing, enable the plugin in Hermes config.yaml:");
-    lines.push("  plugins:");
-    lines.push("    enabled:");
-    lines.push("      - harnesstrim");
-    lines.push("");
-    lines.push("Then restart Hermes. The plugin starts in dry-run mode (logs to stderr).");
-    lines.push("Set HARNESSTRIM_MODE=active in Hermes' environment to reduce tool output.");
+    lines.push("Restart Hermes to load the refreshed plugin.");
+  } else {
+    lines.push(`  Source: ${plan.pluginSource}`);
+    lines.push(`  Dest:   ${plan.pluginDest}`);
+    lines.push("  (plugin.yaml + __init__.py; plugin will be enabled on --apply when Hermes CLI is available)");
   }
 
   if (!apply) {

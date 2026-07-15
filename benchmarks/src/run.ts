@@ -1,7 +1,14 @@
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 import fs from "node:fs";
-import { testOutputSlim, gitDiffSlim, type Reducer } from "@harnesstrim/core";
+import {
+  fileListingSlim,
+  genericTextSlim,
+  gitDiffSlim,
+  jsonOutputSlim,
+  testOutputSlim,
+  type Reducer,
+} from "@harnesstrim/core";
 import { countTokens } from "./tokenizer.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -52,6 +59,21 @@ const FIXTURES: Fixture[] = [
       "app.use(requestId());",
       "diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml", // lockfile identity survives even though its body is collapsed
     ],
+  },
+  {
+    file: "json/array-25.json",
+    reducer: jsonOutputSlim,
+    mustKeep: ["array with 25 total items", "record-01", "record-25"],
+  },
+  {
+    file: "file-listing/ls-long.txt",
+    reducer: fileListingSlim,
+    mustKeep: ["total 128", "file-00.ts", "file-20.ts"],
+  },
+  {
+    file: "generic-text/daily-briefing.md",
+    reducer: genericTextSlim,
+    mustKeep: ["# Daily engineering briefing", "## Actions", "Verify the plugin schema handling."],
   },
 ];
 

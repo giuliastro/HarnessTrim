@@ -1,7 +1,18 @@
 import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 import { parseTrimEvents, summarize, type TrimSummary } from "@harnesstrim/core";
 
-export const DEFAULT_METRICS_PATH = ".harnesstrim/metrics.jsonl";
+const HERMES_METRICS_PATH = path.join(os.homedir(), ".hermes", "harnesstrim-metrics.jsonl");
+const LOCAL_METRICS_PATH = ".harnesstrim/metrics.jsonl";
+
+/**
+ * Prefer Hermes' real plugin telemetry when it exists; otherwise retain the
+ * project-local default used by the other adapters.
+ */
+export const DEFAULT_METRICS_PATH = fs.existsSync(HERMES_METRICS_PATH)
+  ? HERMES_METRICS_PATH
+  : LOCAL_METRICS_PATH;
 
 export interface MetricsResult {
   path: string;

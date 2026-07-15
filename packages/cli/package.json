@@ -14,7 +14,8 @@
     "@harnesstrim/benchmarks": "workspace:*",
     "@harnesstrim/adapter-pi": "workspace:*",
     "@harnesstrim/core": "workspace:*",
-    "@harnesstrim/mcp": "workspace:*"
+    "@harnesstrim/mcp": "workspace:*",
+    "tsx": "^4.19.0"
   },
   "scripts": {
     "test": "node --test \"src/**/*.test.ts\"",

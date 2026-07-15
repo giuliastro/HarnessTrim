@@ -28,7 +28,6 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 PLUGIN_DIR = Path(__file__).parent
@@ -36,13 +35,13 @@ PLUGIN_DIR = Path(__file__).parent
 CONFIG_DEFAULTS = {
     "mode": "dryrun",       # "dryrun" | "active" | "off"
     "minLength": 400,
-    "telemetry": False,     # off by default (privacy); opt in with HARNESSTRIM_TELEMETRY
+    "telemetry": False,      # explicit opt-in: tool output may contain sensitive data
     "debug": False,
 }
 
-# Where the plugin writes TrimEvent JSONL lines (read by `harnesstrim metrics`) when
-# telemetry is enabled. Under the Hermes home dir so metrics survive across sessions.
-METRICS_PATH = Path.home() / ".hermes" / "harnesstrim-metrics.jsonl"
+# Store telemetry in the active Hermes home. HERMES_HOME is profile-aware when set
+# by Hermes; direct CLI usage falls back to the default profile.
+METRICS_PATH = Path(os.environ.get("HERMES_HOME", str(Path.home() / ".hermes"))) / "harnesstrim-metrics.jsonl"
 
 # Tool types whose output we consider for reduction.
 REDUCER_TOOLS = frozenset({
@@ -135,74 +134,88 @@ def _call_reducer(text: str, min_length: int) -> tuple[str, str | None]:
     return (text, None)
 
 
-def on_tool_result(tool_name, args, result, **kwargs):
-    """Hook handler: if the tool is in REDUCER_TOOLS, try to slim the result string.
+def _text_targets(payload):
+    """Yield mutable payload mappings and text-field names safe to reduce.
 
-    The contract of ``transform_tool_result`` is that the first handler that returns
-    a string wins.  We return ``None`` (skip / no-op) unless we actually reduced.
+    Hermes tools use different result schemas: terminal returns ``output``, file
+    tools ``content``, browser snapshots ``snapshot``, vision ``analysis``, and
+    web_extract has one content field per entry in ``results``.
     """
-    cfg = _load_config()
-    if cfg["mode"] == "off":
-        return None
-    if tool_name not in REDUCER_TOOLS:
-        return None
+    if not isinstance(payload, dict):
+        return []
 
-    # The ``result`` argument is the raw JSON string returned by the tool handler.
+    targets = []
+    for key in ("output", "content", "snapshot", "analysis"):
+        if isinstance(payload.get(key), str) and payload[key]:
+            targets.append((payload, key))
+            break
+
+    results = payload.get("results")
+    if isinstance(results, list):
+        for entry in results:
+            if not isinstance(entry, dict):
+                continue
+            for key in ("content", "output", "text"):
+                if isinstance(entry.get(key), str) and entry[key]:
+                    targets.append((entry, key))
+                    break
+    return targets
+
+
+def on_tool_result(tool_name, args, result, **kwargs):
+    """Reduce recognized textual fields while preserving the original JSON schema."""
+    cfg = _load_config()
+    if cfg["mode"] == "off" or tool_name not in REDUCER_TOOLS:
+        return None
     if not result or not isinstance(result, str):
         return None
 
-    # Parse the JSON to extract the human-readable text portion.
     try:
         payload = json.loads(result)
     except (json.JSONDecodeError, ValueError):
         payload = None
 
-    if isinstance(payload, dict):
-        text = payload.get("output", "")
-        if not isinstance(text, str) or not text:
-            return None
-    elif isinstance(payload, str):
-        text = payload
+    if isinstance(payload, str):
+        targets = [(None, None, payload)]
+    elif payload is None:
+        targets = [(None, None, result)]
     else:
-        text = result
+        targets = [(container, key, container[key]) for container, key in _text_targets(payload)]
 
-    before_len = len(text)
-    if before_len < cfg["minLength"]:
+    if not targets:
         return None
 
-    # Check for an already-reduced marker to avoid double-reduction.
-    HERMES_TRIM_MARKERS = ("[harnesstrim:", "[hermes-trim", "harnesstrim:test-output-slim", "harnesstrim:generic-text-slim", "harnesstrim:json-output-slim", "harnesstrim:file-listing-slim")
-    if any(marker in text for marker in HERMES_TRIM_MARKERS):
-        return None
+    changed = False
+    for container, key, text in targets:
+        before_len = len(text)
+        if before_len < cfg["minLength"]:
+            continue
+        if "[harnesstrim:" in text or "[hermes-trim" in text:
+            continue
 
-    after, reducer = _call_reducer(text, cfg["minLength"])
+        after, reducer = _call_reducer(text, cfg["minLength"])
+        if after == text:
+            continue
 
-    if after == text:
-        return None  # no change — let other handlers (if any) run
-
-    if cfg["mode"] == "dryrun":
-        saved = before_len - len(after)
-        click = sys.stderr if sys.stderr else None
-        if click:
+        changed = True
+        if cfg["mode"] == "dryrun":
             print(
                 f"[harnesstrim] dryrun: {tool_name} "
-                f"{before_len} -> {len(after)} chars (would save {saved})",
-                file=click,
+                f"{before_len} -> {len(after)} chars (would save {before_len - len(after)})",
+                file=sys.stderr,
             )
-        return None  # dryrun: don't mutate the result
+            continue
 
-    # active mode: rewrite the result (+ telemetry, only when opted in)
-    if cfg["telemetry"]:
-        _write_metric(tool_name, reducer, before_len, len(after))
-
-    if isinstance(payload, dict):
-        payload["output"] = after
-        # Preserve the original raw output length for debugging
+        if container is None:
+            payload = after
+        else:
+            container[key] = after
         if cfg["telemetry"]:
-            payload.setdefault("metadata", {})["_harnesstrim_before"] = before_len
-        return json.dumps(payload, ensure_ascii=False)
-    else:
-        return after
+            _write_metric(tool_name, reducer, before_len, len(after))
+
+    if not changed or cfg["mode"] == "dryrun":
+        return None
+    return json.dumps(payload, ensure_ascii=False) if not isinstance(payload, str) else payload
 
 
 def _write_metric(tool: str, reducer: str | None, before: int, after: int) -> None:

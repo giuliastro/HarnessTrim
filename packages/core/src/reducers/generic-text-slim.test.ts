@@ -147,6 +147,26 @@ Done.
   assert.match(result.output, /\| A    \| 1    \|/);
 });
 
+test("generic-text-slim: preserves every line inside long code fences", () => {
+  const code = Array.from({ length: 14 }, (_, i) => `const critical_${i} = ${i};`).join("\n");
+  const input = `# Report
+
+\`\`\`typescript
+${code}
+\`\`\`
+
+This is narrative filler that should be reduced.
+It continues for more than enough lines to collapse.
+The third filler line triggers the reducer.
+
+## End`;
+  const result = genericTextSlim.reduce(input);
+  assert.equal(result.changed, true);
+  assert.match(result.output, /critical_0/);
+  assert.match(result.output, /critical_10/);
+  assert.match(result.output, /critical_13/);
+});
+
 test("generic-text-slim: keeps first and last CONTEXT_AFTER lines", () => {
   const input = `First line
 Second line

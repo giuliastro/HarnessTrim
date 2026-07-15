@@ -27,8 +27,8 @@ function isFileEntry(line: string): boolean {
   // find-style: ./path/to/file
   if (/^\.\/(?:\.|[^.\s])/.test(trimmed)) return true;
 
-  // tree-style: unicode box-drawing prefix
-  if (/^[\s]*[│├└─+\\|]/.test(trimmed)) return true;
+  // tree-style: require a real branch marker; a bare "|" is a Markdown table.
+  if (/^\s*(?:├──|└──|│\s+)/.test(trimmed)) return true;
 
   // search_files style: "path/to/filename:line|content"
   if (/^[\w.\/\-]+\.[a-zA-Z]{1,4}:\d+\|/.test(trimmed)) return true;

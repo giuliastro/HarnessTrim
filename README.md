@@ -18,16 +18,16 @@ git clone https://github.com/harnesstrim/harnesstrim.git
 cd harnesstrim
 pnpm install
 
-# CLI is now available via pnpm exec, or link it globally:
+# Run directly from a checkout on Linux, macOS, or Windows:
 pnpm exec harnesstrim doctor            # diagnose token waste in the current project
 pnpm exec harnesstrim reduce < output   # slim noisy tool output
 
-# Install the adapter for your harness (dry-run first, then --apply):
-harnesstrim install hermes --apply      # Hermes Agent plugin
-harnesstrim install opencode --apply    # OpenCode runtime plugin
-harnesstrim install claude --apply      # Claude Code PostToolUse hook
-harnesstrim install codex --apply       # Codex skill pack + AGENTS.md instruction
-harnesstrim install pi --apply          # Pi extension
+# Install an adapter (dry-run first, then --apply):
+pnpm exec harnesstrim install hermes --apply      # Hermes Agent plugin
+pnpm exec harnesstrim install opencode --apply    # OpenCode runtime plugin
+pnpm exec harnesstrim install claude --apply      # Claude Code PostToolUse hook
+pnpm exec harnesstrim install codex --apply       # Codex skill pack + AGENTS.md instruction
+pnpm exec harnesstrim install pi --apply          # Pi extension
 ```
 
 After installing an adapter, the harness automatically reduces tool output (test logs, git diffs,
@@ -303,27 +303,19 @@ pnpm run typecheck   # type-check every package against real dependency types
 pnpm run bench       # Tier A micro-benchmark: token reduction on fixed fixtures
 ```
 
-Once built, make the CLI available on PATH:
+The package bin is cross-platform: the same `pnpm exec harnesstrim …` command works from Linux, macOS,
+and Windows. To expose it globally, use your package manager's standard linking command:
 
 ```sh
-pnpm exec harnesstrim --help                          # works from the repo directory
-./scripts/setup-cli.sh                                # one-time PATH setup (see below)
+pnpm --filter @harnesstrim/cli link --global
+harnesstrim --help
 ```
 
 ## Using it in your harness
 
-Each harness has a one-command installer (dry-run until `--apply`). First make the `harnesstrim`
-command available on your PATH with the repo's auto-install script:
-
-```sh
-./scripts/setup-cli.sh    # installs ~/.local/bin/harnesstrim launcher
-harnesstrim --help        # now available globally
-```
-
-Or, if you prefer working from the repo directory, prefix every command with `pnpm exec`:
-
-The **installer** is a preview until you pass `--apply`: run it without `--apply` first to see exactly
-what files it would change. That is separate from each adapter's **runtime reduction mode** below.
+Each harness has a one-command installer (dry-run until `--apply`). Use `pnpm exec harnesstrim …`
+from a checkout, or `harnesstrim …` after linking the package globally. The installer preview is separate
+from each adapter's runtime reduction mode below.
 
 ### Reduction mode & telemetry (per adapter)
 
@@ -335,7 +327,7 @@ harness. "dry-run mode" here means the adapter logs what it *would* slim without
 | OpenCode | **Yes** — plugin `mode` defaults to `active` | already permanent in `opencode.json`; set `"mode": "dryrun"` there to only preview | off; set plugin option `"telemetry": true` (+ optional `telemetryPath`), read with `harnesstrim metrics <path>` |
 | Claude Code | **Yes** — the `PostToolUse` hook reduces once loaded (no dry-run mode) | permanent once in `.claude/settings.json` | none (the hook does not emit metrics) |
 | Codex | No automatic reduction — the model pipes through `harnesstrim reduce` or calls the MCP `reduce` tool | permanent (the `AGENTS.md` instruction / MCP registration persists) | via the MCP/pipe path, not an adapter emitter |
-| Hermes | **Yes** — starts in `active` (set via `HARNESSTRIM_MODE` env or plugin defaults) | already active; override with `HARNESSTRIM_MODE=dryrun` | off; `HARNESSTRIM_TELEMETRY=1` writes `~/.hermes/harnesstrim-metrics.jsonl`, read with `harnesstrim metrics ~/.hermes/harnesstrim-metrics.jsonl` |
+| Hermes | **No** — starts in `dryrun` | set `HARNESSTRIM_MODE=active` in Hermes' persistent environment | off; set `HARNESSTRIM_TELEMETRY=1`, then run `harnesstrim metrics` |
 | Pi | **No** — starts in `dryrun` | set `HARNESSTRIM_MODE=active` **persistently** in Pi's environment | none yet (the extension only reduces) |
 
 Guidance: for the dry-run adapters (Hermes, Pi) keep the default while you confirm it slims the right
@@ -389,21 +381,15 @@ harnesstrim install hermes --apply                    # ~/.hermes/plugins/harnes
 harnesstrim install hermes /path/to/project --apply   # project-local .hermes/plugins/
 ```
 
-Copies a Python plugin that hooks Hermes' `transform_tool_result` and slims tool output from
-`terminal`, `read_file`, `web_extract`, `search_files`, `browser_snapshot`, and `vision_analyze`
-before it enters context (it shells out to `harnesstrim reduce`, so `harnesstrim` must be on PATH).
-After installing, enable it in `~/.hermes/config.yaml`:
+`install hermes --apply` refreshes the Python plugin, then enables it with `hermes plugins enable harnesstrim`
+when the Hermes CLI is available. The no-argument form targets the user-level Hermes home; pass an
+explicit directory only for a project-local or alternate-profile installation.
 
-```yaml
-plugins:
-  enabled:
-    - harnesstrim
-```
-
-Restart Hermes. It runs in `active` mode (reduces automatically); set
-`HARNESSTRIM_MODE=dryrun` to preview instead, or `HARNESSTRIM_MODE=off` to disable. The plugin
-automatically detects and reduces test output, git diffs, long JSON arrays, file listings, and
-prose briefings via the shared core dispatcher. Details:
+Restart Hermes after installation. It starts in `dryrun`; set `HARNESSTRIM_MODE=active` to reduce and
+`HARNESSTRIM_TELEMETRY=1` to record metrics. The plugin handles `terminal`, `read_file`, `web_extract`,
+`search_files`, `browser_snapshot`, and `vision_analyze`, preserving each tool's result schema. Run
+`harnesstrim metrics` to read the active Hermes profile's telemetry. It detects test output, git diffs,
+long JSON arrays, file listings, and prose briefings via the shared dispatcher. Details:
 [`packages/adapter-hermes`](packages/adapter-hermes/README.md).
 
 ### Pi

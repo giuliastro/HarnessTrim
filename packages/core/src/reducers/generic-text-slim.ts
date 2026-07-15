@@ -76,7 +76,18 @@ export const genericTextSlim: Reducer = {
       keep[i] = true;
     }
 
+    let insideCodeFence = false;
     for (let i = 0; i < n; i++) {
+      if (CODE_FENCE_RE.test(lines[i])) {
+        keep[i] = true;
+        insideCodeFence = !insideCodeFence;
+        continue;
+      }
+      if (insideCodeFence) {
+        // Code is data, not prose: never collapse the body of a fenced block.
+        keep[i] = true;
+        continue;
+      }
       if (isSignalLine(lines[i])) {
         keep[i] = true;
         // Keep a few lines after signal as context

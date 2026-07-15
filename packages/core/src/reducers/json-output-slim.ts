@@ -170,29 +170,60 @@ function jsonPreview(value: unknown, inline = false): string {
 }
 
 /**
- * Try to find JSON blocks inside a larger text (e.g. output that contains
- * JSON among other text). Returns original unchanged if nothing found.
+ * Reduce every independently parseable JSON block that begins on a line boundary.
+ * Keeping the scan in one pass avoids a marker from preventing a later block from
+ * being reduced on a subsequent invocation.
  */
 function tryExtractJsonBlocks(input: string): ReducerResult {
-  // Look for JSON array or object at top level
-  const arrayMatch = input.match(/^(\s*)\[/m);
-  const objectMatch = input.match(/^(\s*)\{/m);
+  let cursor = 0;
+  let output = "";
+  let changed = false;
 
-  if (!arrayMatch && !objectMatch) {
-    return { output: input, changed: false };
+  while (cursor < input.length) {
+    const match = input.slice(cursor).match(/^[\t ]*[\[{]/m);
+    if (!match || match.index === undefined) {
+      output += input.slice(cursor);
+      break;
+    }
+
+    const start = cursor + match.index + match[0].search(/[\[{]/);
+    const end = findJsonBlockEnd(input, start);
+    if (end === -1) {
+      output += input.slice(cursor);
+      break;
+    }
+
+    output += input.slice(cursor, start);
+    const jsonBlock = input.slice(start, end);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(jsonBlock);
+    } catch {
+      // This was only JSON-looking prose. Preserve it and keep scanning.
+      output += input.slice(start, start + 1);
+      cursor = start + 1;
+      continue;
+    }
+
+    const result = Array.isArray(parsed)
+      ? reduceArray(parsed, jsonBlock)
+      : typeof parsed === "object" && parsed !== null
+        ? reduceObject(parsed as Record<string, unknown>, jsonBlock)
+        : { output: jsonBlock, changed: false };
+    output += result.output;
+    changed ||= result.changed;
+    cursor = end;
   }
 
-  // Try to find and reduce each JSON block
-  // For simplicity, only handle the first block
-  const match = arrayMatch || objectMatch;
-  if (!match) return { output: input, changed: false };
+  return changed
+    ? { output, changed: true, note: "reduced embedded JSON block(s)" }
+    : { output: input, changed: false };
+}
 
-  const start = match.index!;
-  const char = match[0].trim()[0];
-  const depthStack: string[] = [];
+function findJsonBlockEnd(input: string, start: number): number {
+  const stack: string[] = [];
   let inString = false;
   let escape = false;
-  let end = -1;
 
   for (let i = start; i < input.length; i++) {
     const ch = input[i];
@@ -204,53 +235,17 @@ function tryExtractJsonBlocks(input: string): ReducerResult {
       escape = true;
       continue;
     }
-    if (ch === '"' && !escape) {
+    if (ch === '"') {
       inString = !inString;
       continue;
     }
     if (inString) continue;
 
-    if (ch === "{" || ch === "[") {
-      depthStack.push(ch);
-    } else if (ch === "}" || ch === "]") {
-      depthStack.pop();
-      if (depthStack.length === 0) {
-        end = i + 1;
-        break;
-      }
+    if (ch === "{" || ch === "[") stack.push(ch);
+    if (ch === "}" || ch === "]") {
+      stack.pop();
+      if (stack.length === 0) return i + 1;
     }
   }
-
-  if (end === -1) return { output: input, changed: false };
-
-  const before = input.slice(0, start);
-  const jsonBlock = input.slice(start, end);
-  const after = input.slice(end);
-
-  // Try to reduce the JSON block
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(jsonBlock);
-  } catch {
-    return { output: input, changed: false };
-  }
-
-  let reduced: string;
-  if (Array.isArray(parsed)) {
-    const result = reduceArray(parsed, jsonBlock);
-    if (!result.changed) return { output: input, changed: false };
-    reduced = result.output;
-  } else if (typeof parsed === "object" && parsed !== null) {
-    const result = reduceObject(parsed as Record<string, unknown>, jsonBlock);
-    if (!result.changed) return { output: input, changed: false };
-    reduced = result.output;
-  } else {
-    return { output: input, changed: false };
-  }
-
-  return {
-    output: before + reduced + after,
-    changed: true,
-    note: "reduced embedded JSON block",
-  };
+  return -1;
 }

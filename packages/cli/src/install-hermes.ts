@@ -1,21 +1,24 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { planHermesInstall, markerFileContent, type HermesInstallPlan } from "@harnesstrim/adapter-hermes";
+import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { HERMES_PLUGIN_NAME, markerFileContent, planHermesInstall, type HermesInstallPlan } from "@harnesstrim/adapter-hermes";
 
 export interface HermesInstallResult {
   plan: HermesInstallPlan;
   applied: boolean;
   copiedFiles: string[];
+  /** Whether `hermes plugins enable harnesstrim` succeeded after installation. */
+  enabled: boolean | null;
+  /** Diagnostic when Hermes CLI is unavailable or enable failed. */
+  enableMessage?: string;
 }
 
-/**
- * Locate the shipped Hermes plugin directory.  In the monorepo this resolves to
- * ``packages/adapter-hermes/plugin/`` (packages/cli/src/ -> repo root -> packages/adapter-hermes/plugin).
- */
+/** Locate the bundled plugin beside the installed adapter package, not a checkout. */
 function resolvePluginSourceDir(): string {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  return path.resolve(here, "..", "..", "..", "packages", "adapter-hermes", "plugin");
+  const require = createRequire(import.meta.url);
+  const adapterEntry = require.resolve("@harnesstrim/adapter-hermes");
+  return path.resolve(path.dirname(adapterEntry), "..", "plugin");
 }
 
 function pluginDirExists(pluginDest: string): boolean {
@@ -38,7 +41,8 @@ function markerPresent(pluginDest: string): boolean {
  * Compute (and optionally apply) a Hermes plugin install: copy the shipped plugin
  * bundle into ``<installDir>/.hermes/plugins/harnesstrim/``.
  *
- * Dry-run by default (``apply=false``).  Idempotent via a ``.installed`` marker file.
+ * Dry-run by default (``apply=false``). When applied, always refresh the shipped
+ * plugin files so an existing installation receives reducer and bug-fix updates.
  */
 export function runInstallHermes(installDir: string, apply: boolean): HermesInstallResult {
   const pluginSourceDir = resolvePluginSourceDir();
@@ -54,7 +58,10 @@ export function runInstallHermes(installDir: string, apply: boolean): HermesInst
   const copiedFiles: string[] = [];
   let applied = false;
 
-  if (apply && !plan.alreadyInstalled) {
+  let enabled: boolean | null = null;
+  let enableMessage: string | undefined;
+
+  if (apply) {
     fs.mkdirSync(pluginDest, { recursive: true });
     const entries = fs.readdirSync(pluginSourceDir, { withFileTypes: true });
     for (const entry of entries) {
@@ -70,7 +77,19 @@ export function runInstallHermes(installDir: string, apply: boolean): HermesInst
     fs.writeFileSync(path.join(pluginDest, ".installed"), markerFileContent());
     copiedFiles.push(".installed");
     applied = true;
+
+    const enable = spawnSync("hermes", ["plugins", "enable", HERMES_PLUGIN_NAME], {
+      encoding: "utf8",
+    });
+    if (enable.error) {
+      enableMessage = "Hermes CLI was not available; enable harnesstrim after installing Hermes.";
+    } else if (enable.status === 0) {
+      enabled = true;
+    } else {
+      enabled = false;
+      enableMessage = (enable.stderr || enable.stdout || "Hermes refused to enable the plugin.").trim();
+    }
   }
 
-  return { plan, applied, copiedFiles };
+  return { plan, applied, copiedFiles, enabled, enableMessage };
 }
