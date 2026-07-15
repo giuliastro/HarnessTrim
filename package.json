@@ -17,6 +17,7 @@
   "devDependencies": {
     "@harnesstrim/cli": "workspace:*",
     "@types/node": "^26.1.1",
+    "tsx": "^4.19.0",
     "typescript": "^7.0.2"
   }
 }

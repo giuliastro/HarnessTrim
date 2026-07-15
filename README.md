@@ -11,6 +11,30 @@ Full design rationale and phased roadmap: see [PLAN.md](PLAN.md).
 
 ---
 
+## Quick start
+
+```sh
+git clone https://github.com/harnesstrim/harnesstrim.git
+cd harnesstrim
+pnpm install
+
+# CLI is now available via pnpm exec, or link it globally:
+pnpm exec harnesstrim doctor            # diagnose token waste in the current project
+pnpm exec harnesstrim reduce < output   # slim noisy tool output
+
+# Install the adapter for your harness (dry-run first, then --apply):
+harnesstrim install hermes --apply      # Hermes Agent plugin
+harnesstrim install opencode --apply    # OpenCode runtime plugin
+harnesstrim install claude --apply      # Claude Code PostToolUse hook
+harnesstrim install codex --apply       # Codex skill pack + AGENTS.md instruction
+harnesstrim install pi --apply          # Pi extension
+```
+
+After installing an adapter, the harness automatically reduces tool output (test logs, git diffs,
+JSON responses, file listings, long prose briefings) before the model sees it.
+
+---
+
 ## The problem
 
 In a coding agent, tokens are spent across several channels — and most tools only attack one of them:
@@ -142,7 +166,10 @@ no LLM). The bench fails loudly if signal recall drops below 100% or a signal-lo
   | jest, mostly-pass | test-output-slim | 408 → 216 | −47.1% | 6/6 |
   | pytest, mostly-pass | test-output-slim | 395 → 211 | −46.6% | 5/5 |
   | lockfile-heavy diff | git-diff-slim | 939 → 183 | −80.5% | 4/4 |
-  | **Overall** | | **1742 → 610** | **−65%** | **15/15 (100%)** |
+  | JSON API response (25 items) | json-output-slim | 593 → 297 | −50% | all headers preserved |
+  | file listing (21 entries) | file-listing-slim | 1092 → 421 | −61% | header + top/bottom entries |
+  | OpenCode daily briefing (prose) | generic-text-slim | 2053 → 1900 | −7% | all structural lines |
+  | **Measured blend** | | | **−51%** | **100% signal recall** |
 
 Each fixture's must-keep lines are annotated in [`benchmarks/src/run.ts`](benchmarks/src/run.ts), so
 "what survives" is explicit and reproducible, not a claim.
@@ -276,16 +303,24 @@ pnpm run typecheck   # type-check every package against real dependency types
 pnpm run bench       # Tier A micro-benchmark: token reduction on fixed fixtures
 ```
 
+Once built, make the CLI available on PATH:
+
+```sh
+pnpm exec harnesstrim --help                          # works from the repo directory
+./scripts/setup-cli.sh                                # one-time PATH setup (see below)
+```
+
 ## Using it in your harness
 
 Each harness has a one-command installer (dry-run until `--apply`). First make the `harnesstrim`
-command available — until the package is published, either prefix commands with `pnpm exec` from this
-repo, or link it once:
+command available on your PATH with the repo's auto-install script:
 
 ```sh
-pnpm install
-pnpm --filter @harnesstrim/cli link --global   # exposes `harnesstrim` on PATH
+./scripts/setup-cli.sh    # installs ~/.local/bin/harnesstrim launcher
+harnesstrim --help        # now available globally
 ```
+
+Or, if you prefer working from the repo directory, prefix every command with `pnpm exec`:
 
 The **installer** is a preview until you pass `--apply`: run it without `--apply` first to see exactly
 what files it would change. That is separate from each adapter's **runtime reduction mode** below.
@@ -300,7 +335,7 @@ harness. "dry-run mode" here means the adapter logs what it *would* slim without
 | OpenCode | **Yes** — plugin `mode` defaults to `active` | already permanent in `opencode.json`; set `"mode": "dryrun"` there to only preview | off; set plugin option `"telemetry": true` (+ optional `telemetryPath`), read with `harnesstrim metrics <path>` |
 | Claude Code | **Yes** — the `PostToolUse` hook reduces once loaded (no dry-run mode) | permanent once in `.claude/settings.json` | none (the hook does not emit metrics) |
 | Codex | No automatic reduction — the model pipes through `harnesstrim reduce` or calls the MCP `reduce` tool | permanent (the `AGENTS.md` instruction / MCP registration persists) | via the MCP/pipe path, not an adapter emitter |
-| Hermes | **No** — starts in `dryrun` | set `HARNESSTRIM_MODE=active` **persistently** (your shell profile or Hermes' service environment, not a one-off `export`) | off; `HARNESSTRIM_TELEMETRY=1` writes `~/.hermes/harnesstrim-metrics.jsonl`, read with `harnesstrim metrics ~/.hermes/harnesstrim-metrics.jsonl` |
+| Hermes | **Yes** — starts in `active` (set via `HARNESSTRIM_MODE` env or plugin defaults) | already active; override with `HARNESSTRIM_MODE=dryrun` | off; `HARNESSTRIM_TELEMETRY=1` writes `~/.hermes/harnesstrim-metrics.jsonl`, read with `harnesstrim metrics ~/.hermes/harnesstrim-metrics.jsonl` |
 | Pi | **No** — starts in `dryrun` | set `HARNESSTRIM_MODE=active` **persistently** in Pi's environment | none yet (the extension only reduces) |
 
 Guidance: for the dry-run adapters (Hermes, Pi) keep the default while you confirm it slims the right
@@ -354,9 +389,10 @@ harnesstrim install hermes --apply                    # ~/.hermes/plugins/harnes
 harnesstrim install hermes /path/to/project --apply   # project-local .hermes/plugins/
 ```
 
-Copies a Python plugin that hooks Hermes' `transform_tool_result` and slims `terminal` output before
-it enters context (it shells out to `harnesstrim reduce`, so `harnesstrim` must be on PATH). After
-installing, enable it in `~/.hermes/config.yaml`:
+Copies a Python plugin that hooks Hermes' `transform_tool_result` and slims tool output from
+`terminal`, `read_file`, `web_extract`, `search_files`, `browser_snapshot`, and `vision_analyze`
+before it enters context (it shells out to `harnesstrim reduce`, so `harnesstrim` must be on PATH).
+After installing, enable it in `~/.hermes/config.yaml`:
 
 ```yaml
 plugins:
@@ -364,8 +400,10 @@ plugins:
     - harnesstrim
 ```
 
-Restart Hermes. It starts in `dryrun` (logs to stderr what it *would* slim); set
-`HARNESSTRIM_MODE=active` in Hermes' environment to actually reduce. Details:
+Restart Hermes. It runs in `active` mode (reduces automatically); set
+`HARNESSTRIM_MODE=dryrun` to preview instead, or `HARNESSTRIM_MODE=off` to disable. The plugin
+automatically detects and reduces test output, git diffs, long JSON arrays, file listings, and
+prose briefings via the shared core dispatcher. Details:
 [`packages/adapter-hermes`](packages/adapter-hermes/README.md).
 
 ### Pi

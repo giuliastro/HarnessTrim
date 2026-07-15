@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "harnesstrim": "./src/cli.ts"
+    "harnesstrim": "./bin/harnesstrim.mjs"
   },
   "dependencies": {
     "@harnesstrim/adapter-claude": "workspace:*",

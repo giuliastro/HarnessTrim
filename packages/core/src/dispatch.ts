@@ -1,6 +1,9 @@
 import type { Reducer, ReducerResult } from "./reducers/types.ts";
 import { testOutputSlim } from "./reducers/test-output-slim.ts";
 import { gitDiffSlim } from "./reducers/git-diff-slim.ts";
+import { genericTextSlim } from "./reducers/generic-text-slim.ts";
+import { jsonOutputSlim } from "./reducers/json-output-slim.ts";
+import { fileListingSlim } from "./reducers/file-listing-slim.ts";
 
 /** Below this length, reducing isn't worth it and risks churning small, stable content. */
 export const DEFAULT_MIN_LENGTH = 400;
@@ -8,6 +11,13 @@ export const DEFAULT_MIN_LENGTH = 400;
 const GIT_DIFF_RE = /^diff --git /m;
 const TEST_OUTPUT_RE =
   /\b\d+\s+(passed|failed)\b|^(PASS|FAIL)\s|::\w.*\b(PASSED|FAILED)\b|=+\s*(FAILURES|short test summary)/im;
+// JSON: starts with [ or { (possibly preceded by whitespace)
+const JSON_RE = /^\s*[\[{]/m;
+// File listing: ls permissions, find ./path, tree chars, or search_files pattern
+const FILE_LISTING_RE = /(?:^total\s+\d+|^[\-bcdlsp][\-r][\-w][\-xs\-][\-r][\-w][\-xs\-][\-r][\-w][\-xs\-]|^\.\/(?:\.|[^.\s])|^[\s]*[│├└─+\\|])/m;
+// Long-form text: has long prose paragraphs (lines of text without structural markers).
+// Used as lowest-priority catch-all for briefings, reports, feature ideas, etc.
+const LONG_TEXT_RE = /^#{1,4}\s.*\n(?:(?!^#{1,4}\s|^diff --git |^```).*\n){5,}/m;
 
 /**
  * Content-based reducer selection. Detects what a blob of tool output actually is
@@ -18,6 +28,9 @@ const TEST_OUTPUT_RE =
 export function pickReducer(text: string): Reducer | null {
   if (GIT_DIFF_RE.test(text)) return gitDiffSlim;
   if (TEST_OUTPUT_RE.test(text)) return testOutputSlim;
+  if (JSON_RE.test(text) && text.length >= 400) return jsonOutputSlim;
+  if (FILE_LISTING_RE.test(text) && text.length >= 400) return fileListingSlim;
+  if (LONG_TEXT_RE.test(text) && text.length >= 1000) return genericTextSlim;
   return null;
 }
 

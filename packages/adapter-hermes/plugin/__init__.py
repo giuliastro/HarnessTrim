@@ -47,6 +47,11 @@ METRICS_PATH = Path.home() / ".hermes" / "harnesstrim-metrics.jsonl"
 # Tool types whose output we consider for reduction.
 REDUCER_TOOLS = frozenset({
     "terminal",
+    "read_file",
+    "web_extract",
+    "search_files",
+    "browser_snapshot",
+    "vision_analyze",
 })
 
 
@@ -94,9 +99,13 @@ def _call_reducer(text: str, min_length: int) -> tuple[str, str | None]:
     """
     cli = _find_harnesstrim_cli()
     if cli is None:
-        # We are likely in a plugin context without the CLI on PATH.
-        # Fall back to a bundler-aware path (the plugin ships alongside the monorepo?).
-        # For now, silently pass through.
+        import warnings
+        warnings.warn(
+            "[harnesstrim] CLI not found on PATH — output not reduced. "
+            "Install CLI with: curl -fsSL https://harnesstrim.dev/install.sh | bash "
+            "or build from source: git clone https://github.com/harnesstrim/harnesstrim",
+            stacklevel=2,
+        )
         return (text, None)
 
     if len(text) < min_length:
@@ -162,7 +171,7 @@ def on_tool_result(tool_name, args, result, **kwargs):
         return None
 
     # Check for an already-reduced marker to avoid double-reduction.
-    HERMES_TRIM_MARKERS = ("[harnesstrim", "[hermes-trim", "harnesstrim:test-output-slim")
+    HERMES_TRIM_MARKERS = ("[harnesstrim:", "[hermes-trim", "harnesstrim:test-output-slim", "harnesstrim:generic-text-slim", "harnesstrim:json-output-slim", "harnesstrim:file-listing-slim")
     if any(marker in text for marker in HERMES_TRIM_MARKERS):
         return None
 
