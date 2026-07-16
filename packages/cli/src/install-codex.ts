@@ -1,10 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import { planCodexInstall, type CodexInstallPlan } from "@harnesstrim/adapter-codex";
+import { planCodexHookInstall, planCodexInstall, type CodexHookInstallPlan, type CodexInstallPlan } from "@harnesstrim/adapter-codex";
 import { resolveSkillsSourceDir, listShippedSkills, existingSkillNames } from "./skills-source.ts";
 
 export interface CodexInstallResult {
   plan: CodexInstallPlan;
+  hookPlan: CodexHookInstallPlan | null;
   applied: boolean;
   copied: string[];
 }
@@ -15,7 +16,7 @@ export interface CodexInstallResult {
  * default; skills already present are skipped and the AGENTS.md snippet is only added
  * once (idempotent via its marker).
  */
-export function runInstallCodex(dir: string, apply: boolean): CodexInstallResult {
+export function runInstallCodex(dir: string, apply: boolean, hook: boolean = false): CodexInstallResult {
   const skillsSourceDir = resolveSkillsSourceDir();
   const skillNames = listShippedSkills(skillsSourceDir);
   const skillsDest = path.join(dir, ".codex", "skills");
@@ -36,6 +37,17 @@ export function runInstallCodex(dir: string, apply: boolean): CodexInstallResult
     existingSkillNames: existingSkillNames(skillsDest),
   });
 
+  const hooksPath = path.join(dir, ".codex", "hooks.json");
+  let hooksJsonContent: string | null = null;
+  if (hook) {
+    try {
+      hooksJsonContent = fs.readFileSync(hooksPath, "utf8");
+    } catch {
+      hooksJsonContent = null;
+    }
+  }
+  const hookPlan = hook ? planCodexHookInstall({ projectDir: dir, hooksJsonContent }) : null;
+
   const copied: string[] = [];
   let applied = false;
   if (apply) {
@@ -49,8 +61,12 @@ export function runInstallCodex(dir: string, apply: boolean): CodexInstallResult
     } else if (plan.instructionsAction === "append") {
       fs.appendFileSync(plan.instructionsFile, "\n\n" + plan.instructionsSnippet + "\n");
     }
+    if (hookPlan && hookPlan.action !== "present") {
+      fs.mkdirSync(path.dirname(hookPlan.hooksFile), { recursive: true });
+      fs.writeFileSync(hookPlan.hooksFile, JSON.stringify(hookPlan.nextHooks, null, 2) + "\n");
+    }
     applied = true;
   }
 
-  return { plan, applied, copied };
+  return { plan, hookPlan, applied, copied };
 }

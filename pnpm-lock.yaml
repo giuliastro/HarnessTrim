@@ -33,7 +33,11 @@ importers:
         specifier: workspace:*
         version: link:../core
 
-  packages/adapter-codex: {}
+  packages/adapter-codex:
+    devDependencies:
+      '@harnesstrim/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/adapter-hermes:
     dependencies:

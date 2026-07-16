@@ -11,6 +11,7 @@ import { runInstallClaude } from "./install-claude.ts";
 import { runInstallPi } from "./install-pi.ts";
 import { runInstallHermes } from "./install-hermes.ts";
 import { reduceClaudePayload } from "@harnesstrim/adapter-claude";
+import { reduceCodexPayload } from "@harnesstrim/adapter-codex";
 import { loadMetrics, DEFAULT_METRICS_PATH } from "./metrics.ts";
 import { readStdin, reducePipe } from "./reduce.ts";
 import {
@@ -32,8 +33,9 @@ Usage:
   harnesstrim install opencode [dir]       Wire the adapter into opencode.json (dry-run)
                             --apply         Actually write the change
                             --preset <name> Bake a policy preset's adapter config in
-  harnesstrim install codex [dir]          Install skills + AGENTS.md reduce-pipe (dry-run)
+  harnesstrim install codex [dir]          Install skills + AGENTS.md reduction guidance (dry-run)
                             --apply         Actually write the change
+                            --hook          Also install the experimental Bash PostToolUse hook
   harnesstrim install claude [dir]         Install skills + PostToolUse reducer hook (dry-run)
                             --apply         Actually write the change
   harnesstrim install hermes [dir]         Install Hermes plugin (dry-run)
@@ -42,6 +44,8 @@ Usage:
                             --apply         Actually write the change
   harnesstrim hook claude [--metrics <path>]
                                            PostToolUse hook runtime; --metrics records a TrimEvent per reduction
+  harnesstrim hook codex [--metrics <path>]
+                                           PostToolUse runtime for Codex's experimental Bash hook
   harnesstrim preset list                  List policy presets
   harnesstrim preset show <name>           Show a preset in detail
   harnesstrim metrics [path]               Summarize adapter telemetry (JSONL)
@@ -67,6 +71,7 @@ async function main(argv: string[]): Promise<number> {
       "min-length": { type: "string" },
       log: { type: "string" },
       metrics: { type: "string" },
+      hook: { type: "boolean" },
     },
   });
 
@@ -96,7 +101,7 @@ async function main(argv: string[]): Promise<number> {
         return 0;
       }
       if (target === "codex") {
-        console.log(renderCodexInstall(runInstallCodex(dir, apply), apply));
+        console.log(renderCodexInstall(runInstallCodex(dir, apply, values.hook === true), apply));
         return 0;
       }
       if (target === "claude") {
@@ -116,12 +121,12 @@ async function main(argv: string[]): Promise<number> {
     }
     case "hook": {
       const which = rest[0];
-      if (which !== "claude") {
-        console.error(`Unknown hook target: ${which ?? "(none)"}. Supported: claude.`);
+      if (which !== "claude" && which !== "codex") {
+        console.error(`Unknown hook target: ${which ?? "(none)"}. Supported: claude, codex.`);
         return 1;
       }
       const input = await readStdin();
-      const { response, event } = reduceClaudePayload(input);
+      const { response, event } = which === "claude" ? reduceClaudePayload(input) : reduceCodexPayload(input);
       process.stdout.write(response);
       // --metrics <path>: append a TrimEvent per reduction, read by `harnesstrim metrics`.
       if (values.metrics && event) {
@@ -130,7 +135,7 @@ async function main(argv: string[]): Promise<number> {
           fs.mkdirSync(path.dirname(p), { recursive: true });
           fs.appendFileSync(
             p,
-            JSON.stringify({ ts: new Date().toISOString(), harness: "claude", ...event }) + "\n"
+            JSON.stringify({ ts: new Date().toISOString(), harness: which, ...event }) + "\n"
           );
         } catch {
           /* telemetry must never break the hook */

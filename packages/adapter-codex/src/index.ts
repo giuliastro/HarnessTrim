@@ -1,11 +1,13 @@
 import path from "node:path";
+export * from "./hook.ts";
 
 /**
  * HarnessTrim adapter for Codex.
  *
- * Codex has no `tool.execute` output hook like OpenCode. Its native surfaces are the
- * Agent Skills standard and the `AGENTS.md` instruction file. So this adapter integrates
- * two ways (matching the source proposal's "regole/istruzioni in Codex" + skills):
+ * Codex has no supported in-place tool-output transform like OpenCode. Its native
+ * surfaces are Agent Skills, `AGENTS.md`, and lifecycle hooks. The stable default
+ * integrates two ways (matching the source proposal's "regole/istruzioni in Codex" +
+ * skills):
  *   1. install the portable skill bundle into a Codex-readable skills directory, and
  *   2. append an AGENTS.md instruction telling the agent to pipe noisy command output
  *      through `harnesstrim reduce` (the deterministic reducer, RTK-style).
@@ -15,6 +17,8 @@ import path from "node:path";
  */
 
 export const HARNESSTRIM_MARKER = "harnesstrim:begin";
+export const CODEX_HOOK_COMMAND = "harnesstrim hook codex --metrics .harnesstrim/metrics.jsonl";
+export const CODEX_HOOK_MATCHER = "^Bash$";
 
 export const REDUCE_INSTRUCTION_SNIPPET = `<!-- ${HARNESSTRIM_MARKER} -->
 ## Token economy (HarnessTrim)
@@ -57,6 +61,76 @@ export interface CodexInstallInput {
   agentsMdContent: string | null;
   /** Skill names already present at the destination. */
   existingSkillNames: string[];
+}
+
+interface HookEntry {
+  matcher?: string;
+  hooks?: Array<{ type?: string; command?: string }>;
+}
+
+export type HooksAction = "create" | "patch" | "present";
+
+export interface CodexHookInstallPlan {
+  hooksFile: string;
+  action: HooksAction;
+  /** Complete hooks.json content to write when the action is create or patch. */
+  nextHooks: Record<string, unknown>;
+}
+
+export interface CodexHookInstallInput {
+  projectDir: string;
+  /** Current .codex/hooks.json content, or null when it does not exist. */
+  hooksJsonContent: string | null;
+}
+
+function hasHarnessTrimHook(document: Record<string, unknown>): boolean {
+  const hooks = document.hooks as Record<string, unknown> | undefined;
+  const post = hooks?.PostToolUse;
+  if (!Array.isArray(post)) return false;
+  return post.some((entry: HookEntry) =>
+    Array.isArray(entry?.hooks) &&
+    entry.hooks.some((hook) => typeof hook?.command === "string" && hook.command.includes("harnesstrim hook codex"))
+  );
+}
+
+/**
+ * Plan the optional Codex PostToolUse integration. It deliberately targets only Bash:
+ * Codex does not currently support a native replacement field for tool output, so the
+ * runtime hook uses its documented block-and-replace fallback for simple shell calls.
+ */
+export function planCodexHookInstall(input: CodexHookInstallInput): CodexHookInstallPlan {
+  let document: Record<string, unknown> = {};
+  let action: HooksAction;
+  if (input.hooksJsonContent === null) {
+    action = "create";
+  } else {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(input.hooksJsonContent);
+    } catch {
+      throw new Error(".codex/hooks.json is not valid JSON; refusing to overwrite it.");
+    }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      throw new Error(".codex/hooks.json must contain a JSON object; refusing to overwrite it.");
+    }
+    document = parsed as Record<string, unknown>;
+    action = hasHarnessTrimHook(document) ? "present" : "patch";
+  }
+
+  if (action === "present") {
+    return { hooksFile: path.join(input.projectDir, ".codex", "hooks.json"), action, nextHooks: document };
+  }
+
+  const hooks: Record<string, unknown> = { ...((document.hooks as Record<string, unknown>) ?? {}) };
+  const post: HookEntry[] = Array.isArray(hooks.PostToolUse) ? [...(hooks.PostToolUse as HookEntry[])] : [];
+  post.push({ matcher: CODEX_HOOK_MATCHER, hooks: [{ type: "command", command: CODEX_HOOK_COMMAND }] });
+  hooks.PostToolUse = post;
+
+  return {
+    hooksFile: path.join(input.projectDir, ".codex", "hooks.json"),
+    action,
+    nextHooks: { ...document, hooks },
+  };
 }
 
 /**

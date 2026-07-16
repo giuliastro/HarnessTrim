@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
-import { planCodexInstall, HARNESSTRIM_MARKER } from "./index.ts";
+import { planCodexHookInstall, planCodexInstall, HARNESSTRIM_MARKER } from "./index.ts";
 
 const base = {
   projectDir: "/proj",
@@ -45,4 +45,26 @@ test("instructions action: present (idempotent) when the marker is already there
 test("snippet documents the reduce pipe", () => {
   const plan = planCodexInstall(base);
   assert.match(plan.instructionsSnippet, /harnesstrim reduce/);
+});
+
+test("plans an optional Codex Bash PostToolUse hook with telemetry", () => {
+  const plan = planCodexHookInstall({ projectDir: "/proj", hooksJsonContent: null });
+  assert.equal(plan.action, "create");
+  const post = (plan.nextHooks.hooks as Record<string, unknown>).PostToolUse as Array<Record<string, unknown>>;
+  assert.equal(post[0].matcher, "^Bash$");
+  assert.match(JSON.stringify(post), /harnesstrim hook codex --metrics/);
+});
+
+test("keeps an existing Codex hook idempotent", () => {
+  const hooks = JSON.stringify({
+    hooks: { PostToolUse: [{ matcher: "^Bash$", hooks: [{ type: "command", command: "harnesstrim hook codex --metrics x" }] }] },
+  });
+  assert.equal(planCodexHookInstall({ projectDir: "/proj", hooksJsonContent: hooks }).action, "present");
+});
+
+test("refuses to overwrite malformed hooks.json", () => {
+  assert.throws(
+    () => planCodexHookInstall({ projectDir: "/proj", hooksJsonContent: "{ nope" }),
+    /not valid JSON/
+  );
 });

@@ -102,6 +102,22 @@ export function renderCodexInstall(result: CodexInstallResult, apply: boolean): 
         : `Reduce-pipe instruction ${apply ? "appended" : "would be appended"} to AGENTS.md.`;
   lines.push(instr);
 
+  if (result.hookPlan) {
+    lines.push("");
+    if (result.hookPlan.action === "present") {
+      lines.push(`${result.hookPlan.hooksFile}: HarnessTrim Bash PostToolUse hook already present (no change).`);
+    } else {
+      lines.push(
+        `${result.hookPlan.hooksFile}: experimental Bash PostToolUse hook ${apply ? (result.hookPlan.action === "create" ? "created" : "added") : "would be added"}.`
+      );
+      lines.push("It reduces simple Bash output automatically and records JSONL telemetry in .harnesstrim/metrics.jsonl.");
+      if (!apply) {
+        lines.push("Resulting hooks.json:");
+        lines.push(JSON.stringify(result.hookPlan.nextHooks, null, 2));
+      }
+    }
+  }
+
   if (!apply) {
     lines.push("");
     lines.push("Dry run — nothing written. Re-run with `--apply`.");

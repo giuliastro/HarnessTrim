@@ -2,19 +2,25 @@
 
 HarnessTrim adapter for [Codex](https://developers.openai.com/codex).
 
-Codex has no tool-output hook like OpenCode, so this adapter integrates through Codex's native
-surfaces — the Agent Skills standard and the `AGENTS.md` instruction file:
+Codex has no supported in-place tool-output transform like OpenCode, so the stable adapter
+integrates through Codex's native surfaces — the Agent Skills standard and the `AGENTS.md`
+instruction file:
 
 1. **Skill bundle** — copies the portable skills into `<project>/.codex/skills`.
 2. **Reduce-pipe instruction** — appends an `AGENTS.md` section telling the agent to pipe noisy
    command output through `harnesstrim reduce` (deterministic, RTK-style), so only signal enters
    context.
 
+An experimental opt-in `PostToolUse` hook is also available for automatic reduction of simple
+Bash results. It uses Codex's block-and-replace fallback because Codex does not yet expose a
+supported in-place output replacement field.
+
 ## Install
 
 ```sh
 harnesstrim install codex            # dry-run: shows skills to copy + AGENTS.md snippet
 harnesstrim install codex --apply    # writes it
+harnesstrim install codex --hook --apply # also add the experimental Bash hook + telemetry
 ```
 
 Idempotent: skills already present are skipped, and the AGENTS.md instruction is added only once
@@ -31,6 +37,20 @@ git diff | harnesstrim reduce
 
 `harnesstrim reduce` reads stdin, applies the matching reducer, and writes the slimmed output to
 stdout (keeping failures/errors/summaries, dropping passing-test noise and generated-file diffs).
+
+## Experimental automatic Bash reduction
+
+`harnesstrim install codex --hook --apply` writes `.codex/hooks.json` with a `PostToolUse`
+hook matched to `Bash`. The hook reads Codex's `tool_response`, applies `reduceAuto`, and, only
+when it changed the output, returns Codex's documented block-and-replace response containing the
+reduced text. It writes one event per reduction to `.harnesstrim/metrics.jsonl`.
+
+This is opt-in because Codex hooks do not yet offer a stable in-place result transformation:
+
+- only supported/simple Bash calls are intercepted;
+- Web Search and other non-shell tools are not covered;
+- hooks must be reviewed and trusted by Codex before running;
+- malformed or unfamiliar response shapes always pass through unchanged.
 
 ## Status
 
