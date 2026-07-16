@@ -1,0 +1,22 @@
+total 128
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-00.ts
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-01.ts
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-02.ts
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-03.ts
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-04.ts
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-05.ts
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-06.ts
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-07.ts
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-08.ts
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-09.ts
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-10.ts
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-11.ts
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-12.ts
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-13.ts
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-14.ts
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-15.ts
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-16.ts
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-17.ts
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-18.ts
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-19.ts
+-rw-r--r-- 1 user group 123 Jul 15 10:00 file-20.ts

@@ -13,20 +13,13 @@ works through Hermes' **plugin system** — no Hermes core patches needed.
 ## Install
 
 ```sh
-harnesstrim install hermes                         # dry-run: shows what would be copied
-harnesstrim install hermes --apply                  # writes the plugin to ~/.hermes/plugins/harnesstrim/
-harnesstrim install hermes /path/to/project --apply  # project-local install (.hermes/plugins/)
+harnesstrim install hermes                         # dry-run: user-level ~/.hermes target
+harnesstrim install hermes --apply                  # copies/refreshes and enables the plugin
+harnesstrim install hermes /path/to/project --apply # explicit project-local .hermes target
 ```
 
-After `--apply`, enable the plugin in `~/.hermes/config.yaml`:
-
-```yaml
-plugins:
-  enabled:
-    - harnesstrim
-```
-
-Then restart Hermes.
+`--apply` invokes `hermes plugins enable harnesstrim` after copying when the Hermes CLI is available.
+Restart Hermes after installation or refresh so the gateway loads the current plugin bundle.
 
 ## Mode lifecycle
 
@@ -48,10 +41,11 @@ recorded; read the aggregate with `harnesstrim metrics ~/.hermes/harnesstrim-met
 ```
 Hermes tool call → transform_tool_result hook
   → __init__.py:on_tool_result()
-    → if tool == "terminal" && text ≥ minLength && no marker
+    → extract output/content/snapshot/analysis/result content
+    → if text ≥ minLength and no marker
       → subprocess: harnesstrim reduce --min-length X
-      → mode == "active": rewrite result.output
-      → mode == "dryrun":  log to stderr, don't touch
+      → mode == active: rewrite the same result field
+      → mode == dryrun: log to stderr, don't touch
 ```
 
 ### Hook contract
@@ -74,8 +68,10 @@ This hook:
   to avoid double-reduction.
 * **Minimum length** — outputs shorter than 400 chars are never touched.
 * **Never grows output** — the reducer never returns more text than it received.
-* **Only `terminal` tool** — structured results from other tools are never touched.
-* **Plugin system** — no Hermes core patches. Install/uninstall via `plugins.enabled` in config.
+* **Only configured tools** — `terminal`, `read_file`, `web_extract`, `search_files`,
+  `browser_snapshot`, and `vision_analyze`; their original JSON field names are preserved.
+* **Profile-aware telemetry** — resolves `HERMES_HOME` when Hermes provides it, then falls back to
+  the default profile home.
 
 ## Status
 

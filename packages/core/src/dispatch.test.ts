@@ -17,6 +17,56 @@ test("pickReducer: detects test output", () => {
   assert.equal(pickReducer(bigTestOutput)?.name, "test-output-slim");
 });
 
+test("pickReducer: detects long-form text", () => {
+  const longProse =
+    "# Big Report\n\nThis has very long prose that goes on for many lines\n".repeat(15) +
+    "With some more content\n".repeat(10);
+  assert.equal(pickReducer(longProse)?.name, "generic-text-slim");
+});
+
+test("pickReducer: detects JSON arrays", () => {
+  const items = Array.from({ length: 50 }, (_, i) => `    { "id": ${i}, "name": "item-${i}" }`);
+  const jsonArr = "[\n" + items.join(",\n") + "\n]";
+  assert.ok(jsonArr.length >= 400, `expected length >= 400, got ${jsonArr.length}`);
+  assert.equal(pickReducer(jsonArr)?.name, "json-output-slim");
+});
+
+test("pickReducer: detects JSON objects", () => {
+  const items = Array.from({ length: 40 }, (_, i) => `    "key${i}": { "value": ${i}, "label": "entry-${i}" }`);
+  const jsonObj = "{\n" + items.join(",\n") + "\n}";
+  assert.ok(jsonObj.length >= 400, `expected length >= 400, got ${jsonObj.length}`);
+  assert.equal(pickReducer(jsonObj)?.name, "json-output-slim");
+});
+
+test("pickReducer: detects Hermes cron output with archived prompt", () => {
+  const cron = `# Cron Job: report\n\n## Prompt\n\n${"skill instructions\n".repeat(40)}\n## Response\n\nDone.`;
+  assert.equal(pickReducer(cron)?.name, "cron-output-slim");
+});
+
+test("pickReducer: detects file listings", () => {
+  const listing =
+    "total 128\n" +
+    Array.from({ length: 20 }, (_, i) => `-rw-r--r--  1 user group  123 Jul 15 10:00 file-${i}.ts`).join("\n");
+  assert.equal(pickReducer(listing)?.name, "file-listing-slim");
+});
+
+test("pickReducer: detects search_files listing output", () => {
+  const listing = Array.from(
+    { length: 30 },
+    (_, i) => `src/file-${i}.ts:${i + 1}|const value${i} = ${i};`,
+  ).join("\n");
+  assert.equal(pickReducer(listing)?.name, "file-listing-slim");
+});
+
+test("reduceAuto: preserves long Markdown tables", () => {
+  const table = ["# Report", "", "| Name | Value |", "| --- | --- |"];
+  for (let i = 0; i < 30; i++) table.push(`| row-${i} | ${i} |`);
+  const input = table.join("\n");
+  const result = reduceAuto(input, 50);
+  assert.notEqual(result.reducer, "file-listing-slim");
+  assert.match(result.output, /\| row-15 \| 15 \|/);
+});
+
 test("pickReducer: returns null for unrelated prose", () => {
   assert.equal(pickReducer("just some regular explanatory text with no markers"), null);
 });
