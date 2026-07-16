@@ -1,6 +1,6 @@
 {
   "name": "@harnesstrim/core",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Deterministic, idempotent reducers and policy primitives for HarnessTrim adapters.",
   "license": "MIT",
   "type": "module",
