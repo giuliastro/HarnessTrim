@@ -46,14 +46,16 @@ importers:
         version: link:../core
 
   packages/adapter-opencode:
-    dependencies:
+    devDependencies:
       '@harnesstrim/core':
         specifier: workspace:*
         version: link:../core
-    devDependencies:
       '@opencode-ai/plugin':
         specifier: latest
         version: 1.17.18
+      esbuild:
+        specifier: ^0.25.0
+        version: 0.25.12
 
   packages/adapter-pi: {}
 

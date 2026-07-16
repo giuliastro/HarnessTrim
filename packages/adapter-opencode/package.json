@@ -1,24 +1,29 @@
 {
   "name": "@harnesstrim/adapter-opencode",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "OpenCode plugin adapter for HarnessTrim: slims tool output via core reducers and injects compaction handoff guidance.",
   "license": "MIT",
   "type": "module",
-  "main": "./src/plugin.ts",
+  "main": "./dist/plugin.mjs",
   "exports": {
-    ".": "./src/plugin.ts"
+    ".": "./dist/plugin.mjs"
   },
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
+    "build": "node build.mjs",
+    "prepare": "node build.mjs",
+    "prepack": "node build.mjs",
     "test": "node --test \"src/**/*.test.ts\"",
     "typecheck": "tsc -p tsconfig.json"
   },
-  "dependencies": {
-    "@harnesstrim/core": "^0.0.1"
-  },
   "devDependencies": {
-    "@opencode-ai/plugin": "latest"
+    "@opencode-ai/plugin": "latest",
+    "@harnesstrim/core": "workspace:*",
+    "esbuild": "^0.25.0"
   }
 }
