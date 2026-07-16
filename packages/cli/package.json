@@ -7,16 +7,28 @@
   "bin": {
     "harnesstrim": "./src/cli.ts"
   },
-  "dependencies": {
+  "files": [
+    "dist",
+    "assets"
+  ],
+  "publishConfig": {
+    "bin": {
+      "harnesstrim": "./dist/cli.mjs"
+    }
+  },
+  "devDependencies": {
     "@harnesstrim/adapter-claude": "workspace:*",
     "@harnesstrim/adapter-codex": "workspace:*",
     "@harnesstrim/adapter-hermes": "workspace:*",
     "@harnesstrim/adapter-pi": "workspace:*",
     "@harnesstrim/benchmarks": "workspace:*",
     "@harnesstrim/core": "workspace:*",
-    "@harnesstrim/mcp": "workspace:*"
+    "@harnesstrim/mcp": "workspace:*",
+    "esbuild": "^0.25.0"
   },
   "scripts": {
+    "build": "node build.mjs",
+    "prepack": "node build.mjs",
     "test": "node --test \"src/**/*.test.ts\"",
     "typecheck": "tsc -p tsconfig.json"
   }

@@ -13,9 +13,23 @@ Full design rationale and phased roadmap: see [PLAN.md](PLAN.md).
 
 ## Quick start
 
+No checkout required — run the CLI straight from npm:
+
 ```sh
-git clone https://github.com/harnesstrim/harnesstrim.git
-cd harnesstrim
+npx @harnesstrim/cli doctor             # diagnose token waste in the current project
+npx @harnesstrim/cli install claude --apply   # install an adapter (dry-run without --apply)
+npm test 2>&1 | npx @harnesstrim/cli reduce   # slim noisy tool output through a pipe
+```
+
+The published package is a single self-contained bundle (no runtime dependencies); the skill pack
+and the Hermes/Pi plugin files ship inside it. `bench` is the one command that needs a checkout (it
+reads the repo's benchmark fixtures).
+
+### From a checkout (for development)
+
+```sh
+git clone https://github.com/giuliastro/HarnessTrim.git
+cd HarnessTrim
 pnpm install
 
 # Run directly from a checkout on Linux, macOS, or Windows:

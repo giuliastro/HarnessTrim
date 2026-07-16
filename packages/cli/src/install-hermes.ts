@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { createRequire } from "node:module";
 import { HERMES_PLUGIN_NAME, markerFileContent, planHermesInstall, type HermesInstallPlan } from "@harnesstrim/adapter-hermes";
+import { resolveHermesPluginSourceDir } from "./assets.ts";
 
 export interface HermesInstallResult {
   plan: HermesInstallPlan;
@@ -12,13 +12,6 @@ export interface HermesInstallResult {
   enabled: boolean | null;
   /** Diagnostic when Hermes CLI is unavailable or enable failed. */
   enableMessage?: string;
-}
-
-/** Locate the bundled plugin beside the installed adapter package, not a checkout. */
-function resolvePluginSourceDir(): string {
-  const require = createRequire(import.meta.url);
-  const adapterEntry = require.resolve("@harnesstrim/adapter-hermes");
-  return path.resolve(path.dirname(adapterEntry), "..", "plugin");
 }
 
 function pluginDirExists(pluginDest: string): boolean {
@@ -45,7 +38,7 @@ function markerPresent(pluginDest: string): boolean {
  * plugin files so an existing installation receives reducer and bug-fix updates.
  */
 export function runInstallHermes(installDir: string, apply: boolean): HermesInstallResult {
-  const pluginSourceDir = resolvePluginSourceDir();
+  const pluginSourceDir = resolveHermesPluginSourceDir();
   const pluginDest = path.join(installDir, ".hermes", "plugins", "harnesstrim");
 
   const plan = planHermesInstall({

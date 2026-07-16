@@ -199,8 +199,26 @@ async function main(argv: string[]): Promise<number> {
       return 0;
     }
     case "bench": {
-      const { runBench } = await import("@harnesstrim/benchmarks/run");
-      runBench();
+      // The Tier A micro-benchmark runs against the repo's fixtures and writes a
+      // report back into the repo — it's a monorepo-development tool, kept out of the
+      // published bundle (see build.mjs). In a standalone install the import fails
+      // (ERR_MODULE_NOT_FOUND); from a stray location the fixtures are missing
+      // (ENOENT). Either way, degrade with a clear message instead of a raw stack.
+      try {
+        const { runBench } = await import("@harnesstrim/benchmarks/run");
+        runBench();
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException)?.code;
+        if (code === "ENOENT" || code === "ERR_MODULE_NOT_FOUND") {
+          console.error(
+            "harnesstrim bench is a repository-development command (it reads the benchmark\n" +
+              "fixtures and writes a report). Run it from a HarnessTrim checkout:\n" +
+              "  git clone https://github.com/giuliastro/HarnessTrim && pnpm install && pnpm exec harnesstrim bench"
+          );
+          return 1;
+        }
+        throw err;
+      }
       return 0;
     }
     default:

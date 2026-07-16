@@ -272,22 +272,12 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
 ## 9. Status log
 
 - **RESUME HERE (next session).** Repo is green: CI passes on Linux/Windows/macOS, 119 tests,
-  typecheck clean, bench fidelity OK. Next planned work, in order:
-  1. **npm packaging of `@harnesstrim/cli`** (top adoption lever; make `npx @harnesstrim/cli` work
-     standalone). Do NOT run `npm publish` without the user's explicit go — publishing is outward and
-     effectively permanent. Plan:
-     - Bundle `packages/cli/src/cli.ts` → `packages/cli/dist/cli.mjs` with esbuild (single file, no
-       `workspace:*` runtime deps), shebang `#!/usr/bin/env node`; point `bin` at `dist/cli.mjs`; add
-       a `build` + `prepublishOnly` script and a `files` allowlist.
-     - **Gotcha to handle:** the install commands read DATA files from disk, not just code —
-       `skills-source.ts` resolves `../../../skills` via import.meta.url; `install-hermes.ts` reads
-       `packages/adapter-hermes/plugin/`; `install-pi.ts` reads `packages/adapter-pi/extension/`.
-       Bundling moves the entry to `dist/`, breaking those relative paths. Fix: copy the skill pack +
-       the Hermes plugin + the Pi extension into `packages/cli/assets/` at build time and make each
-       resolver look next to the bundle first (prod), then fall back to the repo layout (dev).
-     - **Verify** without publishing: `pnpm pack` the cli, install the tarball into a temp dir, and
-       run `doctor`, `reduce`, `install codex --apply`, `install pi --apply` there — confirm skills
-       and plugin files actually copy. Only then is it publish-ready.
+  typecheck clean, bench fidelity OK. **npm packaging is done and verified publish-ready** (see the
+  2026-07-16 packaging entry below). Next planned work, in order:
+  1. **`npm publish` `@harnesstrim/cli`** — the tarball is verified standalone; the only remaining
+     step is publishing. **Do NOT run `npm publish` without the user's explicit go** — publishing is
+     outward and effectively permanent. When greenlit: `cd packages/cli && npm publish --access public`
+     (the `prepack` build runs automatically; `publishConfig.bin` rewrites the bin to `dist/cli.mjs`).
   2. Tier B robustness (more tasks + several runs with a Zen model) to replace the README's
      hypothesized 30–50% with measured numbers.
   3. Confirm the Claude reduction actually reaches the model after a Claude Code **restart** (the hook
@@ -297,6 +287,37 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   Dogfooding is live: the Claude PostToolUse hook (in `.claude/settings.local.json`, gitignored)
   records TrimEvents to `.harnesstrim/metrics.jsonl`; read KPIs with
   `harnesstrim metrics .harnesstrim/metrics.jsonl`.
+
+- **2026-07-16** — **npm packaging of `@harnesstrim/cli` complete and verified publish-ready.**
+  Bundled `packages/cli/src/cli.ts` → `packages/cli/dist/cli.mjs` with esbuild (`build.mjs`, run via
+  the `build` + `prepack` scripts): single ESM file, `#!/usr/bin/env node`, **848 KB**, **zero runtime
+  dependencies** (all `@harnesstrim/*` workspace packages inlined; the MCP SDK + zod inlined so
+  `harnesstrim mcp` works standalone). Key decisions:
+  - **Dev bin stays on TS, published bin on the bundle** via pnpm's `publishConfig.bin` override:
+    `bin` = `./src/cli.ts` (so `pnpm exec harnesstrim …` still works from a checkout with no build
+    step, Node 24 running TS directly), and `publishConfig.bin` = `./dist/cli.mjs` (pnpm rewrites it
+    at pack/publish). Workspace deps moved to `devDependencies` so the published `dependencies` is
+    `{}` — consumers install one package with no transitive deps.
+  - **Data-file gotcha fixed** (the one PLAN flagged): `build.mjs` stages the skill pack, the Hermes
+    plugin, and the Pi extension into `packages/cli/assets/` (gitignored), and a new shared resolver
+    `packages/cli/src/assets.ts` looks next to the bundle first (`<pkg>/assets`, prod) then falls back
+    to the monorepo layout (dev). `skills-source.ts` / `install-hermes.ts` / `install-pi.ts` now all
+    route through it (dropped the old `require.resolve`/`import.meta.url` paths).
+  - **Second gotcha found during verification (not in the original plan):** the benchmarks module has
+    an "auto-run when executed directly" guard (`import.meta.url === pathToFileURL(process.argv[1])`).
+    Once bundled, *both* sides equal `dist/cli.mjs`, so importing it fired `runBench()` at init on
+    *any* command — crashing `bench` with a raw ENOENT. Fix: mark `@harnesstrim/benchmarks/run`
+    **external** in esbuild (it's a repo-dev tool needing repo fixtures anyway; this also dropped the
+    bundle 6.2 MB → 848 KB by excluding js-tiktoken). The `bench` command now catches
+    ENOENT/ERR_MODULE_NOT_FOUND and prints a "run it from a checkout" message; dev `bench` still runs
+    via the workspace.
+  - **Verified standalone** exactly as the plan required, without publishing: `pnpm pack` → `npm
+    install` the tarball into a throwaway project (`added 1 package`, no `@harnesstrim/*` deps) → ran
+    `doctor`, `reduce`, `install codex/claude/hermes/pi --apply` (all six skills + the Hermes plugin +
+    the Pi extension copied from `assets/`), `mcp` (stdio handshake, `reduce` tool discovered), and
+    `bench` (graceful message). Published `package.json` confirmed: `bin → ./dist/cli.mjs`,
+    `dependencies: {}`, `files: ["dist","assets"]`. 119 tests still pass, typecheck clean on all
+    packages. Remaining: the actual `npm publish` (gated on the user's explicit go).
 
 - **2026-07-16** — **Dogfooding on Claude Code + an honest live finding.** Added opt-in TrimEvent
   telemetry to the Claude PostToolUse hook (`reduceClaudePayload`; `harnesstrim hook claude

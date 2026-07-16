@@ -1,16 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolveSkillsSourceDir } from "./assets.ts";
 
-/**
- * Locate the shipped skill pack. In the monorepo this resolves to the repo's `skills/`
- * directory (packages/cli/src -> repo root -> skills). A published build would bundle
- * the skills with the CLI package; this resolver is the single place to change for that.
- */
-export function resolveSkillsSourceDir(): string {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  return path.resolve(here, "../../..", "skills");
-}
+// The skill-pack directory resolver lives in ./assets.ts (shared with the Hermes/Pi
+// installers, and layout-aware for both the published bundle and the monorepo).
+export { resolveSkillsSourceDir };
 
 /** List skill directory names that contain a SKILL.md, under `skillsSourceDir`. */
 export function listShippedSkills(skillsSourceDir: string): string[] {

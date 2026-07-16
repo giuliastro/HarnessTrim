@@ -1,18 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { planPiInstall, markerFileContent, type PiInstallPlan } from "@harnesstrim/adapter-pi";
+import { resolvePiExtensionSourceDir } from "./assets.ts";
 
 export interface PiInstallResult {
   plan: PiInstallPlan;
   applied: boolean;
   copiedFiles: string[];
-}
-
-/** Locate the shipped Pi extension dir (packages/cli/src -> repo root -> adapter-pi/extension). */
-function resolveExtensionSourceDir(): string {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  return path.resolve(here, "..", "..", "..", "packages", "adapter-pi", "extension");
 }
 
 function dirExists(p: string): boolean {
@@ -37,7 +31,7 @@ function markerPresent(dest: string): boolean {
  * `.installed` marker.
  */
 export function runInstallPi(installDir: string, apply: boolean): PiInstallResult {
-  const extensionSourceDir = resolveExtensionSourceDir();
+  const extensionSourceDir = resolvePiExtensionSourceDir();
   const dest = path.join(installDir, ".pi", "extensions", "harnesstrim");
 
   const plan = planPiInstall({
