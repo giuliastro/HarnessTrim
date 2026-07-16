@@ -272,24 +272,36 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
 ## 9. Status log
 
 - **RESUME HERE (next session).** Repo is green: CI passes on Linux/Windows/macOS, 119 tests,
-  typecheck clean, bench fidelity OK. **npm packaging is done and verified publish-ready** (see the
-  2026-07-16 packaging entry below). Next planned work, in order:
-  1. **`npm publish` the `harnesstrim` CLI** — the tarball is verified standalone; the only remaining
-     step is publishing. **Do NOT run `npm publish` without the user's explicit go** — publishing is
-     outward and effectively permanent. When greenlit: `cd packages/cli && npm publish` (the `prepack`
-     build runs automatically; `publishConfig` sets `access: public` and rewrites the bin to
-     `dist/cli.mjs`). Package published **unscoped as `harnesstrim`** (decided 2026-07-16; the `@harnesstrim`
-     org would have to be created on npm first, and the plain project name is the lower-friction choice —
-     so `npx harnesstrim`). The monorepo root package was renamed `harnesstrim-monorepo` to free the name.
-  2. Tier B robustness (more tasks + several runs with a Zen model) to replace the README's
+  typecheck clean, bench fidelity OK. **`harnesstrim` is LIVE on npm and verified working end-to-end**
+  (`npx harnesstrim@latest doctor` runs from a clean dir; current version **0.0.2** — see the
+  2026-07-16 publish entry). Next planned work, in order:
+  1. Tier B robustness (more tasks + several runs with a Zen model) to replace the README's
      hypothesized 30–50% with measured numbers.
-  3. Confirm the Claude reduction actually reaches the model after a Claude Code **restart** (the hook
+  2. Confirm the Claude reduction actually reaches the model after a Claude Code **restart** (the hook
      is contract-correct; mid-session install only recorded KPIs — see the 2026-07-16 entry).
-  4. Pi live hardening (needs the Pi CLI installed); coverage-driven new reducers (needs accumulated
+  3. Pi live hardening (needs the Pi CLI installed); coverage-driven new reducers (needs accumulated
      real telemetry from `.harnesstrim/metrics.jsonl`).
+  4. Follow-ups on the live package: publish skills as part of the package or a `create` flow; add a
+     CI release job; consider `harnesstrim@0.0.x` → `0.1.0` once Tier B numbers land.
   Dogfooding is live: the Claude PostToolUse hook (in `.claude/settings.local.json`, gitignored)
   records TrimEvents to `.harnesstrim/metrics.jsonl`; read KPIs with
   `harnesstrim metrics .harnesstrim/metrics.jsonl`.
+
+- **2026-07-16** — **`harnesstrim` PUBLISHED to npm and verified live (current: 0.0.2).**
+  `npm view harnesstrim version` → 0.0.2; `npx harnesstrim@latest doctor` / `… reduce` run from a
+  clean dir with **zero transitive deps**. Publish path notes for next time:
+  - **npm 2FA:** the account uses a **security-key/passkey** 2FA (no TOTP available), so `npm publish
+    --otp=…` is impossible. The working path is a **classic Automation access token** (bypasses 2FA)
+    in the user's `~/.npmrc` — then `npm publish` is non-interactive. (npm now steers accounts to
+    security keys; "Enable authenticator app" may simply not be offered.)
+  - **Bug shipped in 0.0.1, fixed in 0.0.2 — `publishConfig.bin` is a pnpm-only override; `npm
+    publish` IGNORES it.** 0.0.1 shipped `bin: src/cli.ts`, so `npx harnesstrim` tried to run TS from
+    node_modules and threw `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`. My pre-publish verification
+    used `pnpm pack` (which *does* apply `publishConfig.bin`), masking it. Fix: point `bin` at
+    `./dist/cli.mjs` unconditionally, drop `publishConfig.bin` (keep `access: public`), add a
+    `prepare` build so the dev `pnpm exec harnesstrim` flow still finds a bundle. **Lesson: verify a
+    package with the SAME tool it will be published with — `npm pack` for `npm publish`, and always
+    `npm install` the tarball into a clean dir and run the bin, not just inspect files.**
 
 - **2026-07-16** — **npm packaging of the `harnesstrim` CLI complete and verified publish-ready.**
   (Published unscoped as `harnesstrim` — the CLI package was renamed from `@harnesstrim/cli` to
