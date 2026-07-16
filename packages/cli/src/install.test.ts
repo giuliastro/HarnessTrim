@@ -28,6 +28,14 @@ test("planOpencodeInstall is a no-op when already installed", () => {
   assert.equal(plan.alreadyInstalled, true);
 });
 
+test("planOpencodeInstall migrates the legacy object plugin entry", () => {
+  const legacyOptions = { mode: "active", telemetry: true, telemetryPath: ".harnesstrim/metrics.jsonl" };
+  const plan = planOpencodeInstall({ plugin: [{ name: OPENCODE_PLUGIN_NAME, options: legacyOptions }] });
+  assert.equal(plan.alreadyInstalled, true);
+  assert.equal(plan.changed, true);
+  assert.deepEqual(plan.nextConfig.plugin, [[OPENCODE_PLUGIN_NAME, legacyOptions]]);
+});
+
 test("runInstallOpencode dry-run does not write the file", () => {
   const dir = tmpProject();
   const result = runInstallOpencode(dir, false);

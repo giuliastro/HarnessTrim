@@ -19,6 +19,17 @@ function pluginIndex(plugin: unknown[]): number {
   );
 }
 
+/** Legacy installer format: `{ name: string, options?: object }`. OpenCode rejects it. */
+function legacyPluginIndex(plugin: unknown[]): number {
+  return plugin.findIndex(
+    (entry) =>
+      typeof entry === "object" &&
+      entry !== null &&
+      typeof (entry as Record<string, unknown>).name === "string" &&
+      ((entry as Record<string, unknown>).name as string).includes(OPENCODE_PLUGIN_NAME)
+  );
+}
+
 /**
  * Pure: given a parsed opencode.json config (or null/{} for a fresh project),
  * return the config with the HarnessTrim plugin wired in. When `adapterConfig` is
@@ -33,6 +44,18 @@ export function planOpencodeInstall(config: unknown, adapterConfig?: Record<stri
   const desired: unknown = adapterConfig ? [OPENCODE_PLUGIN_NAME, adapterConfig] : OPENCODE_PLUGIN_NAME;
 
   const idx = pluginIndex(plugin);
+  const legacyIdx = idx === -1 ? legacyPluginIndex(plugin) : -1;
+  if (legacyIdx !== -1) {
+    const legacy = plugin[legacyIdx] as Record<string, unknown>;
+    const options = legacy.options;
+    plugin[legacyIdx] = adapterConfig
+      ? desired
+      : typeof options === "object" && options !== null && !Array.isArray(options)
+        ? [OPENCODE_PLUGIN_NAME, options]
+        : OPENCODE_PLUGIN_NAME;
+    return { nextConfig: { ...base, plugin }, alreadyInstalled: true, changed: true };
+  }
+
   if (idx === -1) {
     plugin.push(desired);
     return { nextConfig: { ...base, plugin }, alreadyInstalled: false, changed: true };
