@@ -275,15 +275,19 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   telemetry to the Claude PostToolUse hook (`reduceClaudePayload`; `harnesstrim hook claude
   --metrics <path>`), then installed the hook locally in this repo's `.claude/settings.local.json`
   (gitignored; command runs the repo CLI, metrics → `.harnesstrim/metrics.jsonl`, also gitignored).
-  Live result in Claude Code 2.1.37: the hook **fires and records KPIs** (a reducible Bash output of
-  1222 chars logged a `harness=claude` TrimEvent, reducer `test-output-slim`, 1222→175), **but the
-  model still received the RAW output** — the `hookSpecificOutput.updatedToolOutput` substitution was
-  not honored (no `[harnesstrim…]` marker in the received tool result). So on this Claude Code version
-  the adapter is currently a **KPI recorder, not an actual context reducer**. Open item: confirm the
-  correct PostToolUse output-rewrite contract for the installed version (field name / capability), or
-  fall back to an MCP `read_slim`/`test_slim` tool path for Claude. The reducers/telemetry themselves
-  are proven; the gap is specifically Claude Code honoring the output rewrite. (OpenCode's
-  `tool.execute.after` substitution IS honored — verified earlier, −91%.)
+  Live in Claude Code 2.1.37: the hook **fires and records KPIs** (a reducible Bash output of 1222
+  chars logged a `harness=claude` TrimEvent, `test-output-slim`, 1222→175). On that first turn the
+  model still received the RAW output.
+  **Follow-up (same day):** re-verified the hook is **contract-correct** per the official docs
+  (confirmed via the claude-code-guide agent + a direct probe): stdout is pure JSON
+  `{"hookSpecificOutput":{"hookEventName":"PostToolUse","updatedToolOutput":"…"}}`, exit 0, empty
+  stderr — exactly the documented shape. So the earlier "not a reducer" conclusion was too strong:
+  the implementation is correct. The likely reason substitution didn't apply is that the hook was
+  **installed mid-session** — Claude Code executed it (hence the metrics) but applying output rewrites
+  for the running session needs a **restart**. Action: restart Claude Code to activate reduction;
+  KPIs are recorded either way. Still-open: confirm the slimmed output actually reaches the model
+  after a fresh start (couldn't restart from within the session). (OpenCode's `tool.execute.after`
+  substitution IS honored — verified earlier, −91%.)
 
 - **2026-07-11** — Plan reviewed and corrected (see §2). Decision: MVP target is OpenCode, not
   Claude Code. Runtime: pnpm + Node for monorepo, Bun for the OpenCode adapter package specifically.
