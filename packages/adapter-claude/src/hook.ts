@@ -1,31 +1,58 @@
 import { reduceAuto } from "@harnesstrim/core";
 
+/** What the Claude hook did: the response JSON to print, and (if it reduced) the facts for telemetry. */
+export interface ClaudeReduction {
+  /** Hook-response JSON to write to stdout (`{}` when nothing changed). */
+  response: string;
+  /** Reduction facts for a TrimEvent, or null when no reduction happened. */
+  event: {
+    tool: string;
+    reducer: string | null;
+    beforeChars: number;
+    afterChars: number;
+  } | null;
+}
+
 /**
- * Runtime for the Claude Code PostToolUse hook. Claude pipes the hook a JSON payload on
- * stdin; a PostToolUse hook can rewrite what the model sees by returning
- * `hookSpecificOutput.updatedToolOutput` (see the Claude Code hooks reference). This
- * function is the pure core: raw stdin JSON in, hook-response JSON out.
+ * Core of the Claude Code PostToolUse hook. Claude pipes a JSON payload on stdin; a
+ * PostToolUse hook rewrites what the model sees by returning
+ * `hookSpecificOutput.updatedToolOutput`. Returns the response plus, when a reduction
+ * happened, the facts needed to record a TrimEvent (for KPI tracking).
  *
- * Defensive by design: any parse/shape problem yields `{}` (no change), because a hook
- * must never corrupt a tool result. Output that no reducer matches is passed through.
+ * Defensive: any parse/shape problem yields `{}` (no change) and a null event, because a
+ * hook must never corrupt a tool result.
  */
-export function buildClaudeHookResponse(rawJson: string, minLength?: number): string {
-  const output = extractToolOutput(rawJson);
-  if (output === null) return "{}";
+export function reduceClaudePayload(rawJson: string, minLength?: number): ClaudeReduction {
+  const extracted = extractToolOutput(rawJson);
+  if (extracted === null) return { response: "{}", event: null };
 
-  const result = reduceAuto(output, minLength);
-  if (!result.changed) return "{}";
+  const result = reduceAuto(extracted.output, minLength);
+  if (!result.changed) return { response: "{}", event: null };
 
-  return JSON.stringify({
+  const response = JSON.stringify({
     hookSpecificOutput: {
       hookEventName: "PostToolUse",
       updatedToolOutput: result.output,
     },
   });
+  return {
+    response,
+    event: {
+      tool: extracted.toolName,
+      reducer: result.reducer,
+      beforeChars: extracted.output.length,
+      afterChars: result.output.length,
+    },
+  };
 }
 
-/** Pull the tool's textual output from the PostToolUse payload, tolerating shape variants. */
-function extractToolOutput(rawJson: string): string | null {
+/** Backward-compatible wrapper returning only the hook-response JSON. */
+export function buildClaudeHookResponse(rawJson: string, minLength?: number): string {
+  return reduceClaudePayload(rawJson, minLength).response;
+}
+
+/** Pull the tool name + textual output from the PostToolUse payload, tolerating shape variants. */
+function extractToolOutput(rawJson: string): { toolName: string; output: string } | null {
   let payload: unknown;
   try {
     payload = JSON.parse(rawJson);
@@ -34,7 +61,13 @@ function extractToolOutput(rawJson: string): string | null {
   }
   if (typeof payload !== "object" || payload === null) return null;
   const p = payload as Record<string, unknown>;
+  const toolName = typeof p.tool_name === "string" ? p.tool_name : "unknown";
 
+  const output = extractOutputText(p);
+  return output === null ? null : { toolName, output };
+}
+
+function extractOutputText(p: Record<string, unknown>): string | null {
   if (typeof p.tool_output === "string") return p.tool_output;
 
   const resp = p.tool_response;

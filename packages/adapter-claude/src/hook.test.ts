@@ -1,11 +1,26 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildClaudeHookResponse } from "./hook.ts";
+import { buildClaudeHookResponse, reduceClaudePayload } from "./hook.ts";
 
 // Kept comfortably above the reducer's default min-length (400 chars).
 const noisy =
   "PASS suite test case number NN ok\n".repeat(40) +
   "FAIL suite broken case\nExpected: 1\nReceived: 2\nTests: 1 failed, 40 passed, 41 total\n";
+
+test("reduceClaudePayload reports a TrimEvent when it reduces", () => {
+  const { response, event } = reduceClaudePayload(JSON.stringify({ tool_name: "Bash", tool_output: noisy }));
+  assert.notEqual(response, "{}");
+  assert.ok(event);
+  assert.equal(event.tool, "Bash");
+  assert.equal(event.reducer, "test-output-slim");
+  assert.ok(event.afterChars < event.beforeChars);
+});
+
+test("reduceClaudePayload event is null when nothing is reduced", () => {
+  const { response, event } = reduceClaudePayload(JSON.stringify({ tool_name: "Bash", tool_output: "all good" }));
+  assert.equal(response, "{}");
+  assert.equal(event, null);
+});
 
 test("reduces tool_output and returns updatedToolOutput", () => {
   const res = JSON.parse(buildClaudeHookResponse(JSON.stringify({ tool_name: "Bash", tool_output: noisy })));

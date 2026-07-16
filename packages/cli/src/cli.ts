@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
 import fs from "node:fs";
+import path from "node:path";
 import os from "node:os";
 import { getPreset, listPresets } from "@harnesstrim/core";
 import { inspect } from "./doctor.ts";
@@ -9,7 +10,7 @@ import { runInstallCodex } from "./install-codex.ts";
 import { runInstallClaude } from "./install-claude.ts";
 import { runInstallPi } from "./install-pi.ts";
 import { runInstallHermes } from "./install-hermes.ts";
-import { buildClaudeHookResponse } from "@harnesstrim/adapter-claude";
+import { reduceClaudePayload } from "@harnesstrim/adapter-claude";
 import { loadMetrics, DEFAULT_METRICS_PATH } from "./metrics.ts";
 import { readStdin, reducePipe } from "./reduce.ts";
 import {
@@ -39,7 +40,8 @@ Usage:
                             --apply         Actually write the change
   harnesstrim install pi [dir]             Install Pi tool_result extension (dry-run)
                             --apply         Actually write the change
-  harnesstrim hook claude                  PostToolUse hook runtime (reads Claude JSON on stdin)
+  harnesstrim hook claude [--metrics <path>]
+                                           PostToolUse hook runtime; --metrics records a TrimEvent per reduction
   harnesstrim preset list                  List policy presets
   harnesstrim preset show <name>           Show a preset in detail
   harnesstrim metrics [path]               Summarize adapter telemetry (JSONL)
@@ -64,6 +66,7 @@ async function main(argv: string[]): Promise<number> {
       stats: { type: "boolean" },
       "min-length": { type: "string" },
       log: { type: "string" },
+      metrics: { type: "string" },
     },
   });
 
@@ -118,14 +121,27 @@ async function main(argv: string[]): Promise<number> {
         return 1;
       }
       const input = await readStdin();
-      const response = buildClaudeHookResponse(input);
+      const { response, event } = reduceClaudePayload(input);
       process.stdout.write(response);
+      // --metrics <path>: append a TrimEvent per reduction, read by `harnesstrim metrics`.
+      if (values.metrics && event) {
+        try {
+          const p = path.resolve(values.metrics);
+          fs.mkdirSync(path.dirname(p), { recursive: true });
+          fs.appendFileSync(
+            p,
+            JSON.stringify({ ts: new Date().toISOString(), harness: "claude", ...event }) + "\n"
+          );
+        } catch {
+          /* telemetry must never break the hook */
+        }
+      }
+      // --log <path>: lightweight debug line (input size, whether it changed).
       if (values.log) {
-        const changed = response !== "{}";
         try {
           fs.appendFileSync(
             values.log,
-            JSON.stringify({ inputChars: input.length, changed, responseChars: response.length }) + "\n"
+            JSON.stringify({ inputChars: input.length, changed: response !== "{}", responseChars: response.length }) + "\n"
           );
         } catch {
           /* logging must never break the hook */
