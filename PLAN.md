@@ -274,10 +274,13 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
 - **RESUME HERE (next session).** Repo is green: CI passes on Linux/Windows/macOS, 119 tests,
   typecheck clean, bench fidelity OK. **npm packaging is done and verified publish-ready** (see the
   2026-07-16 packaging entry below). Next planned work, in order:
-  1. **`npm publish` `@harnesstrim/cli`** — the tarball is verified standalone; the only remaining
+  1. **`npm publish` the `harnesstrim` CLI** — the tarball is verified standalone; the only remaining
      step is publishing. **Do NOT run `npm publish` without the user's explicit go** — publishing is
-     outward and effectively permanent. When greenlit: `cd packages/cli && npm publish --access public`
-     (the `prepack` build runs automatically; `publishConfig.bin` rewrites the bin to `dist/cli.mjs`).
+     outward and effectively permanent. When greenlit: `cd packages/cli && npm publish` (the `prepack`
+     build runs automatically; `publishConfig` sets `access: public` and rewrites the bin to
+     `dist/cli.mjs`). Package published **unscoped as `harnesstrim`** (decided 2026-07-16; the `@harnesstrim`
+     org would have to be created on npm first, and the plain project name is the lower-friction choice —
+     so `npx harnesstrim`). The monorepo root package was renamed `harnesstrim-monorepo` to free the name.
   2. Tier B robustness (more tasks + several runs with a Zen model) to replace the README's
      hypothesized 30–50% with measured numbers.
   3. Confirm the Claude reduction actually reaches the model after a Claude Code **restart** (the hook
@@ -288,7 +291,9 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   records TrimEvents to `.harnesstrim/metrics.jsonl`; read KPIs with
   `harnesstrim metrics .harnesstrim/metrics.jsonl`.
 
-- **2026-07-16** — **npm packaging of `@harnesstrim/cli` complete and verified publish-ready.**
+- **2026-07-16** — **npm packaging of the `harnesstrim` CLI complete and verified publish-ready.**
+  (Published unscoped as `harnesstrim` — the CLI package was renamed from `@harnesstrim/cli` to
+  `harnesstrim` and the monorepo root to `harnesstrim-monorepo` to free the name.)
   Bundled `packages/cli/src/cli.ts` → `packages/cli/dist/cli.mjs` with esbuild (`build.mjs`, run via
   the `build` + `prepack` scripts): single ESM file, `#!/usr/bin/env node`, **848 KB**, **zero runtime
   dependencies** (all `@harnesstrim/*` workspace packages inlined; the MCP SDK + zod inlined so

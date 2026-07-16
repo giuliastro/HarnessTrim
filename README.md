@@ -16,9 +16,9 @@ Full design rationale and phased roadmap: see [PLAN.md](PLAN.md).
 No checkout required — run the CLI straight from npm:
 
 ```sh
-npx @harnesstrim/cli doctor             # diagnose token waste in the current project
-npx @harnesstrim/cli install claude --apply   # install an adapter (dry-run without --apply)
-npm test 2>&1 | npx @harnesstrim/cli reduce   # slim noisy tool output through a pipe
+npx harnesstrim doctor                  # diagnose token waste in the current project
+npx harnesstrim install claude --apply  # install an adapter (dry-run without --apply)
+npm test 2>&1 | npx harnesstrim reduce  # slim noisy tool output through a pipe
 ```
 
 The published package is a single self-contained bundle (no runtime dependencies); the skill pack
@@ -321,7 +321,7 @@ The package bin is cross-platform: the same `pnpm exec harnesstrim …` command 
 and Windows. To expose it globally, use your package manager's standard linking command:
 
 ```sh
-pnpm --filter @harnesstrim/cli link --global
+pnpm --filter harnesstrim link --global
 harnesstrim --help
 ```
 

@@ -35,7 +35,7 @@ Make HarnessTrim effective for real Hermes Agent output while keeping installati
 ### 4. Cross-platform CLI and install flow ✅
 
 - Replaced the Linux-only checkout launcher with a Node `.mjs` bin that resolves its `tsx` runtime independently of the working directory.
-- The portable documented flow is `pnpm exec harnesstrim …`; global exposure uses `pnpm --filter @harnesstrim/cli link --global`.
+- The portable documented flow is `pnpm exec harnesstrim …`; global exposure uses `pnpm --filter harnesstrim link --global`.
 - `harnesstrim install hermes --apply` now refreshes an existing plugin and invokes `hermes plugins enable harnesstrim` when the Hermes CLI is available.
 
 ### 5. Benchmarks and real cron validation ✅

@@ -1,5 +1,5 @@
 {
-  "name": "harnesstrim",
+  "name": "harnesstrim-monorepo",
   "private": true,
   "version": "0.0.1",
   "description": "One token policy for Claude Code, Codex, OpenCode and Pi.",
@@ -15,7 +15,7 @@
     "bench": "pnpm --filter @harnesstrim/benchmarks run bench"
   },
   "devDependencies": {
-    "@harnesstrim/cli": "workspace:*",
+    "harnesstrim": "workspace:*",
     "@types/node": "^26.1.1",
     "typescript": "^7.0.2"
   },

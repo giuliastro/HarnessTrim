@@ -8,12 +8,12 @@ importers:
 
   .:
     devDependencies:
-      '@harnesstrim/cli':
-        specifier: workspace:*
-        version: link:packages/cli
       '@types/node':
         specifier: ^26.1.1
         version: 26.1.1
+      harnesstrim:
+        specifier: workspace:*
+        version: link:packages/cli
       typescript:
         specifier: ^7.0.2
         version: 7.0.2

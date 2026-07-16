@@ -1,4 +1,4 @@
-// Build the publishable @harnesstrim/cli: a single-file bundle plus the data
+// Build the publishable `harnesstrim` CLI: a single-file bundle plus the data
 // files the install commands read from disk.
 //
 //   dist/cli.mjs         <- esbuild bundle of src/cli.ts (all workspace + npm deps inlined)
@@ -6,7 +6,7 @@
 //   assets/adapter-hermes/plugin/    <- the Hermes plugin bundle
 //   assets/adapter-pi/extension/     <- the Pi extension bundle
 //
-// The bundle carries no runtime dependencies, so `npx @harnesstrim/cli` works
+// The bundle carries no runtime dependencies, so `npx harnesstrim` works
 // standalone. assets.ts resolves these directories next to the bundle in a
 // published build, falling back to the monorepo layout during development.
 import { build } from "esbuild";
