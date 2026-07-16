@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { runInstallCodex } from "./install-codex.ts";
+import { runInstallCodex, runInstallCodexGlobalHook } from "./install-codex.ts";
 
 function tmpProject(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "htrim-codex-"));
@@ -25,4 +25,14 @@ test("Codex hook install is idempotent", () => {
   runInstallCodex(dir, true, true);
   const second = runInstallCodex(dir, true, true);
   assert.equal(second.hookPlan?.action, "present");
+});
+
+test("global hook install writes only the Codex-home hooks file", () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "htrim-codex-home-"));
+  const codexHome = path.join(home, ".codex");
+  const result = runInstallCodexGlobalHook(codexHome, true);
+  assert.equal(result.hookPlan.hooksFile, path.join(codexHome, "hooks.json"));
+  assert.equal(fs.existsSync(path.join(home, "AGENTS.md")), false);
+  assert.equal(fs.existsSync(path.join(codexHome, "skills")), false);
+  assert.match(fs.readFileSync(path.join(codexHome, "hooks.json"), "utf8"), /harnesstrim hook codex/);
 });

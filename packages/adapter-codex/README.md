@@ -21,6 +21,7 @@ supported in-place output replacement field.
 harnesstrim install codex            # dry-run: shows skills to copy + AGENTS.md snippet
 harnesstrim install codex --apply    # writes it
 harnesstrim install codex --hook --apply # also add the experimental Bash hook + telemetry
+harnesstrim install codex --hook --global --apply # install it once for trusted projects
 ```
 
 Idempotent: skills already present are skipped, and the AGENTS.md instruction is added only once
@@ -51,6 +52,11 @@ This is opt-in because Codex hooks do not yet offer a stable in-place result tra
 - Web Search and other non-shell tools are not covered;
 - hooks must be reviewed and trusted by Codex before running;
 - malformed or unfamiliar response shapes always pass through unchanged.
+
+To enable the hook for all trusted projects without copying skills or changing any project
+`AGENTS.md`, use `harnesstrim install codex --hook --global --apply`. This writes the hook to
+`~/.codex/hooks.json`; telemetry remains project-local at `.harnesstrim/metrics.jsonl` because
+Codex runs hooks with the active project's directory as the working directory.
 
 ## Status
 

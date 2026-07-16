@@ -2,7 +2,7 @@ import type { Preset } from "@harnesstrim/core";
 import type { DoctorReport, Severity } from "./doctor.ts";
 import type { InstallResult } from "./install.ts";
 import type { MetricsResult } from "./metrics.ts";
-import type { CodexInstallResult } from "./install-codex.ts";
+import type { CodexGlobalHookInstallResult, CodexInstallResult } from "./install-codex.ts";
 import type { ClaudeInstallResult } from "./install-claude.ts";
 import type { PiInstallResult } from "./install-pi.ts";
 import type { HermesInstallResult } from "./install-hermes.ts";
@@ -122,6 +122,22 @@ export function renderCodexInstall(result: CodexInstallResult, apply: boolean): 
     lines.push("");
     lines.push("Dry run — nothing written. Re-run with `--apply`.");
   }
+  return lines.join("\n");
+}
+
+export function renderCodexGlobalHookInstall(result: CodexGlobalHookInstallResult, apply: boolean): string {
+  const lines = [`${apply ? "Installed" : "Would install"} global Codex Bash PostToolUse hook`, ""];
+  if (result.hookPlan.action === "present") {
+    lines.push(`${result.hookPlan.hooksFile}: HarnessTrim hook already present (no change).`);
+  } else {
+    lines.push(`${result.hookPlan.hooksFile}: experimental Bash PostToolUse hook ${apply ? (result.hookPlan.action === "create" ? "created" : "added") : "would be added"}.`);
+    lines.push("It applies in trusted projects and writes telemetry to each project's .harnesstrim/metrics.jsonl.");
+    if (!apply) {
+      lines.push("Resulting hooks.json:");
+      lines.push(JSON.stringify(result.hookPlan.nextHooks, null, 2));
+    }
+  }
+  if (!apply) lines.push("", "Dry run — nothing written. Re-run with `--apply`.");
   return lines.join("\n");
 }
 

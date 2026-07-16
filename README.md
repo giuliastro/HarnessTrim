@@ -42,6 +42,7 @@ pnpm exec harnesstrim install opencode --apply    # OpenCode runtime plugin
 pnpm exec harnesstrim install claude --apply      # Claude Code PostToolUse hook
 pnpm exec harnesstrim install codex --apply       # Codex skill pack + AGENTS.md instruction
 pnpm exec harnesstrim install codex --hook --apply # optional experimental Bash PostToolUse hook
+pnpm exec harnesstrim install codex --hook --global --apply # enable the hook for trusted projects
 pnpm exec harnesstrim install pi --apply          # Pi extension
 ```
 
@@ -291,6 +292,7 @@ pnpm exec harnesstrim install opencode [dir]  # OpenCode plugin -> opencode.json
 pnpm exec harnesstrim install opencode --preset lean-debug --apply
 pnpm exec harnesstrim install codex [dir]     # Codex: skills + AGENTS.md reduce-pipe (dry-run)
                                              # add --hook for experimental automatic Bash reduction
+                                             # add --hook --global to install it once in ~/.codex
 pnpm exec harnesstrim install claude [dir]    # Claude Code: skills + PostToolUse hook (dry-run)
 pnpm exec harnesstrim install hermes [dir]    # Hermes Agent: transform_tool_result plugin (dry-run)
 pnpm exec harnesstrim install pi [dir]        # Pi: tool_result extension (dry-run)
@@ -342,7 +344,7 @@ harness. "dry-run mode" here means the adapter logs what it *would* slim without
 | --- | --- | --- | --- |
 | OpenCode | **Yes** — plugin `mode` defaults to `active` | already permanent in `opencode.json`; set `"mode": "dryrun"` there to only preview | off; set plugin option `"telemetry": true` (+ optional `telemetryPath`), read with `harnesstrim metrics <path>` |
 | Claude Code | **Yes** — the `PostToolUse` hook reduces once loaded (no dry-run mode) | permanent once in `.claude/settings.json` | none (the hook does not emit metrics) |
-| Codex | Default: model pipes through `harnesstrim reduce` or calls MCP `reduce`. Experimental `--hook`: automatically reduces supported Bash results. | `AGENTS.md` / MCP, or `--hook` in trusted projects | `--hook` writes `.harnesstrim/metrics.jsonl`; MCP/pipe telemetry is manual |
+| Codex | Default: model pipes through `harnesstrim reduce` or calls MCP `reduce`. Experimental `--hook`: automatically reduces supported Bash results. | `AGENTS.md` / MCP, project `--hook`, or global `--hook --global` for trusted projects | hook telemetry is written per project to `.harnesstrim/metrics.jsonl`; MCP/pipe telemetry is manual |
 | Hermes | **No** — starts in `dryrun` | set `HARNESSTRIM_MODE=active` in Hermes' persistent environment | off; set `HARNESSTRIM_TELEMETRY=1`, then run `harnesstrim metrics` |
 | Pi | **No** — starts in `dryrun` | set `HARNESSTRIM_MODE=active` **persistently** in Pi's environment | none yet (the extension only reduces) |
 
@@ -387,6 +389,17 @@ records reductions in `.harnesstrim/metrics.jsonl`. Codex currently lacks a supp
 in-place tool-output replacement API, so the hook uses Codex's documented
 block-and-replace fallback. It is deliberately opt-in: it does not intercept every shell
 execution or non-shell tools, and you must review/trust the hook in Codex before it runs.
+
+To enable the same opt-in hook for every trusted project without copying skills or changing
+any project `AGENTS.md`, install it once in your Codex home:
+
+```sh
+harnesstrim install codex --hook --global --apply
+```
+
+This writes `~/.codex/hooks.json`. Because Codex runs the hook with the session's project
+directory as its working directory, each project's metrics still land in that project's
+`.harnesstrim/metrics.jsonl`.
 
 Details: [`packages/adapter-codex`](packages/adapter-codex/README.md),
 [`packages/mcp`](packages/mcp/README.md).

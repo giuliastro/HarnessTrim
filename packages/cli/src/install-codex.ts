@@ -10,6 +10,26 @@ export interface CodexInstallResult {
   copied: string[];
 }
 
+export interface CodexGlobalHookInstallResult {
+  hookPlan: CodexHookInstallPlan;
+  applied: boolean;
+}
+
+function readHooksJson(hooksPath: string): string | null {
+  try {
+    return fs.readFileSync(hooksPath, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+function applyHookPlan(plan: CodexHookInstallPlan, apply: boolean): boolean {
+  if (!apply || plan.action === "present") return false;
+  fs.mkdirSync(path.dirname(plan.hooksFile), { recursive: true });
+  fs.writeFileSync(plan.hooksFile, JSON.stringify(plan.nextHooks, null, 2) + "\n");
+  return true;
+}
+
 /**
  * Compute (and optionally apply) a Codex install: copy the shipped skill pack into
  * `<dir>/.codex/skills` and add the reduce-pipe instruction to AGENTS.md. Dry-run by
@@ -38,14 +58,7 @@ export function runInstallCodex(dir: string, apply: boolean, hook: boolean = fal
   });
 
   const hooksPath = path.join(dir, ".codex", "hooks.json");
-  let hooksJsonContent: string | null = null;
-  if (hook) {
-    try {
-      hooksJsonContent = fs.readFileSync(hooksPath, "utf8");
-    } catch {
-      hooksJsonContent = null;
-    }
-  }
+  const hooksJsonContent = hook ? readHooksJson(hooksPath) : null;
   const hookPlan = hook ? planCodexHookInstall({ projectDir: dir, hooksJsonContent }) : null;
 
   const copied: string[] = [];
@@ -61,12 +74,27 @@ export function runInstallCodex(dir: string, apply: boolean, hook: boolean = fal
     } else if (plan.instructionsAction === "append") {
       fs.appendFileSync(plan.instructionsFile, "\n\n" + plan.instructionsSnippet + "\n");
     }
-    if (hookPlan && hookPlan.action !== "present") {
-      fs.mkdirSync(path.dirname(hookPlan.hooksFile), { recursive: true });
-      fs.writeFileSync(hookPlan.hooksFile, JSON.stringify(hookPlan.nextHooks, null, 2) + "\n");
-    }
+    if (hookPlan) applyHookPlan(hookPlan, true);
     applied = true;
   }
 
   return { plan, hookPlan, applied, copied };
+}
+
+/**
+ * Install only the optional hook in Codex's user-level config directory. This avoids
+ * modifying a repository's skills or AGENTS.md while letting trusted projects inherit
+ * the hook. The hook itself writes metrics relative to each session's cwd.
+ */
+export function runInstallCodexGlobalHook(codexHome: string, apply: boolean): CodexGlobalHookInstallResult {
+  const hooksPath = path.join(codexHome, "hooks.json");
+  const hookPlan = planCodexHookInstall({
+    // The planner expects the directory that contains .codex; for a user-level config
+    // the Codex home is itself that directory, so add its parent and use a normal path.
+    projectDir: path.dirname(codexHome),
+    hooksJsonContent: readHooksJson(hooksPath),
+  });
+  // `planCodexHookInstall` produces <projectDir>/.codex/hooks.json. With the parent of
+  // CODEX_HOME above, that is exactly the requested user-level hooks file.
+  return { hookPlan, applied: applyHookPlan(hookPlan, apply) };
 }

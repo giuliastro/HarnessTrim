@@ -6,7 +6,7 @@ import os from "node:os";
 import { getPreset, listPresets } from "@harnesstrim/core";
 import { inspect } from "./doctor.ts";
 import { runInstallOpencode } from "./install.ts";
-import { runInstallCodex } from "./install-codex.ts";
+import { runInstallCodex, runInstallCodexGlobalHook } from "./install-codex.ts";
 import { runInstallClaude } from "./install-claude.ts";
 import { runInstallPi } from "./install-pi.ts";
 import { runInstallHermes } from "./install-hermes.ts";
@@ -18,6 +18,7 @@ import {
   renderDoctor,
   renderInstall,
   renderCodexInstall,
+  renderCodexGlobalHookInstall,
   renderClaudeInstall,
   renderHermesInstall,
   renderPiInstall,
@@ -36,6 +37,7 @@ Usage:
   harnesstrim install codex [dir]          Install skills + AGENTS.md reduction guidance (dry-run)
                             --apply         Actually write the change
                             --hook          Also install the experimental Bash PostToolUse hook
+                            --global        With --hook, install it once in ~/.codex (no project files)
   harnesstrim install claude [dir]         Install skills + PostToolUse reducer hook (dry-run)
                             --apply         Actually write the change
   harnesstrim install hermes [dir]         Install Hermes plugin (dry-run)
@@ -72,6 +74,7 @@ async function main(argv: string[]): Promise<number> {
       log: { type: "string" },
       metrics: { type: "string" },
       hook: { type: "boolean" },
+      global: { type: "boolean" },
     },
   });
 
@@ -101,6 +104,14 @@ async function main(argv: string[]): Promise<number> {
         return 0;
       }
       if (target === "codex") {
+        if (values.global === true) {
+          if (values.hook !== true) {
+            console.error("`harnesstrim install codex --global` requires `--hook`.");
+            return 1;
+          }
+          console.log(renderCodexGlobalHookInstall(runInstallCodexGlobalHook(path.join(os.homedir(), ".codex"), apply), apply));
+          return 0;
+        }
         console.log(renderCodexInstall(runInstallCodex(dir, apply, values.hook === true), apply));
         return 0;
       }
