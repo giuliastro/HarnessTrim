@@ -1,21 +1,18 @@
 {
   "name": "harnesstrim",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "HarnessTrim CLI: doctor (diagnose token waste), install adapters, run benchmarks.",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "harnesstrim": "./src/cli.ts"
+    "harnesstrim": "./dist/cli.mjs"
   },
   "files": [
     "dist",
     "assets"
   ],
   "publishConfig": {
-    "access": "public",
-    "bin": {
-      "harnesstrim": "./dist/cli.mjs"
-    }
+    "access": "public"
   },
   "devDependencies": {
     "@harnesstrim/adapter-claude": "workspace:*",
@@ -29,6 +26,7 @@
   },
   "scripts": {
     "build": "node build.mjs",
+    "prepare": "node build.mjs",
     "prepack": "node build.mjs",
     "test": "node --test \"src/**/*.test.ts\"",
     "typecheck": "tsc -p tsconfig.json"
