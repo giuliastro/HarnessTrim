@@ -8,12 +8,15 @@
   "exports": {
     ".": "./src/plugin.ts"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "test": "node --test \"src/**/*.test.ts\"",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@harnesstrim/core": "workspace:*"
+    "@harnesstrim/core": "^0.0.1"
   },
   "devDependencies": {
     "@opencode-ai/plugin": "latest"
