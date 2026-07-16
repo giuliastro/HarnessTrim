@@ -271,6 +271,20 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
 
 ## 9. Status log
 
+- **2026-07-16** — **Dogfooding on Claude Code + an honest live finding.** Added opt-in TrimEvent
+  telemetry to the Claude PostToolUse hook (`reduceClaudePayload`; `harnesstrim hook claude
+  --metrics <path>`), then installed the hook locally in this repo's `.claude/settings.local.json`
+  (gitignored; command runs the repo CLI, metrics → `.harnesstrim/metrics.jsonl`, also gitignored).
+  Live result in Claude Code 2.1.37: the hook **fires and records KPIs** (a reducible Bash output of
+  1222 chars logged a `harness=claude` TrimEvent, reducer `test-output-slim`, 1222→175), **but the
+  model still received the RAW output** — the `hookSpecificOutput.updatedToolOutput` substitution was
+  not honored (no `[harnesstrim…]` marker in the received tool result). So on this Claude Code version
+  the adapter is currently a **KPI recorder, not an actual context reducer**. Open item: confirm the
+  correct PostToolUse output-rewrite contract for the installed version (field name / capability), or
+  fall back to an MCP `read_slim`/`test_slim` tool path for Claude. The reducers/telemetry themselves
+  are proven; the gap is specifically Claude Code honoring the output rewrite. (OpenCode's
+  `tool.execute.after` substitution IS honored — verified earlier, −91%.)
+
 - **2026-07-11** — Plan reviewed and corrected (see §2). Decision: MVP target is OpenCode, not
   Claude Code. Runtime: pnpm + Node for monorepo, Bun for the OpenCode adapter package specifically.
   Confirmed OpenCode plugin API via docs (see §5). Next: scaffold monorepo (Phase 0).

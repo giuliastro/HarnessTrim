@@ -13,3 +13,4 @@ benchmarks/tierB/task-failing-test/harnesstrim-metrics.jsonl
 # Python
 __pycache__/
 *.pyc
+.harnesstrim/
