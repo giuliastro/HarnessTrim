@@ -271,6 +271,33 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
 
 ## 9. Status log
 
+- **RESUME HERE (next session).** Repo is green: CI passes on Linux/Windows/macOS, 119 tests,
+  typecheck clean, bench fidelity OK. Next planned work, in order:
+  1. **npm packaging of `@harnesstrim/cli`** (top adoption lever; make `npx @harnesstrim/cli` work
+     standalone). Do NOT run `npm publish` without the user's explicit go — publishing is outward and
+     effectively permanent. Plan:
+     - Bundle `packages/cli/src/cli.ts` → `packages/cli/dist/cli.mjs` with esbuild (single file, no
+       `workspace:*` runtime deps), shebang `#!/usr/bin/env node`; point `bin` at `dist/cli.mjs`; add
+       a `build` + `prepublishOnly` script and a `files` allowlist.
+     - **Gotcha to handle:** the install commands read DATA files from disk, not just code —
+       `skills-source.ts` resolves `../../../skills` via import.meta.url; `install-hermes.ts` reads
+       `packages/adapter-hermes/plugin/`; `install-pi.ts` reads `packages/adapter-pi/extension/`.
+       Bundling moves the entry to `dist/`, breaking those relative paths. Fix: copy the skill pack +
+       the Hermes plugin + the Pi extension into `packages/cli/assets/` at build time and make each
+       resolver look next to the bundle first (prod), then fall back to the repo layout (dev).
+     - **Verify** without publishing: `pnpm pack` the cli, install the tarball into a temp dir, and
+       run `doctor`, `reduce`, `install codex --apply`, `install pi --apply` there — confirm skills
+       and plugin files actually copy. Only then is it publish-ready.
+  2. Tier B robustness (more tasks + several runs with a Zen model) to replace the README's
+     hypothesized 30–50% with measured numbers.
+  3. Confirm the Claude reduction actually reaches the model after a Claude Code **restart** (the hook
+     is contract-correct; mid-session install only recorded KPIs — see the 2026-07-16 entry).
+  4. Pi live hardening (needs the Pi CLI installed); coverage-driven new reducers (needs accumulated
+     real telemetry from `.harnesstrim/metrics.jsonl`).
+  Dogfooding is live: the Claude PostToolUse hook (in `.claude/settings.local.json`, gitignored)
+  records TrimEvents to `.harnesstrim/metrics.jsonl`; read KPIs with
+  `harnesstrim metrics .harnesstrim/metrics.jsonl`.
+
 - **2026-07-16** — **Dogfooding on Claude Code + an honest live finding.** Added opt-in TrimEvent
   telemetry to the Claude PostToolUse hook (`reduceClaudePayload`; `harnesstrim hook claude
   --metrics <path>`), then installed the hook locally in this repo's `.claude/settings.local.json`
