@@ -277,8 +277,12 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   2026-07-16 publish entry). Next planned work, in order:
   1. Tier B robustness (more tasks + several runs with a Zen model) to replace the README's
      hypothesized 30–50% with measured numbers.
-  2. Confirm the Claude reduction actually reaches the model after a Claude Code **restart** (the hook
-     is contract-correct; mid-session install only recorded KPIs — see the 2026-07-16 entry).
+  2. **[RESOLVED — NEGATIVE]** The Claude Code PostToolUse `updatedToolOutput` substitution does **not**
+     reach the model in Claude Code 2.1.37, even after a restart (falsified live 2026-07-16 at the
+     transcript level — see that day's entry). Our hook is spec-correct; this is a Claude-Code-side
+     issue. Follow-up: retest on a newer Claude Code; optionally file a `/feedback` bug. Claude Code
+     users get deterministic reduction today via the MCP `reduce` tool or the `harnesstrim reduce`
+     pipe, not the automatic hook.
   3. Pi live hardening (needs the Pi CLI installed); coverage-driven new reducers (needs accumulated
      real telemetry from `.harnesstrim/metrics.jsonl`).
   4. Follow-ups on the live package: publish skills as part of the package or a `create` flow; add a
@@ -286,6 +290,28 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   Dogfooding is live: the Claude PostToolUse hook (in `.claude/settings.local.json`, gitignored)
   records TrimEvents to `.harnesstrim/metrics.jsonl`; read KPIs with
   `harnesstrim metrics .harnesstrim/metrics.jsonl`.
+
+- **2026-07-16** — **Claude Code PostToolUse `updatedToolOutput` falsified live at the transcript
+  level — the auto-reduction does NOT reach the model in Claude Code 2.1.37 (restart made no
+  difference).** Method: restarted Claude Code, ran a Bash command emitting 45 passing + 1 failing
+  test lines (2090 chars). Findings, in order:
+  1. The hook **fired** (metrics `.harnesstrim/metrics.jsonl` grew; entry `beforeChars:2090 →
+     afterChars:309`, `test-output-slim`).
+  2. The hook's stdout is **spec-correct**: probed the exact installed command with a realistic
+     payload → pure JSON `{"hookSpecificOutput":{"hookEventName":"PostToolUse","updatedToolOutput":
+     "[harnesstrim:test-output-slim] omitted …"}}`, **exit 0, empty stderr, no BOM/warning
+     contamination**. The `claude-code-guide` agent confirmed against the official hooks docs that
+     `updatedToolOutput` exists and "replaces the original tool_output completely… before Claude
+     receives the tool result" — so our shape is exactly right.
+  3. **Decisive check — the session transcript** (`~/.claude/projects/C--Software-HarnessTrim/
+     <session>.jsonl`): the stored `tool_result` for that Bash call is `len=2090`, still contains the
+     raw passing lines (`module_44.test`), and has **no** collapse marker. So the RAW output is what
+     entered the model context; the substitution was not applied.
+  Conclusion: **HarnessTrim's Claude adapter is correct; Claude Code 2.1.37 does not honor
+  `updatedToolOutput` (bug or unshipped behavior).** No adapter code change. This overturns the
+  earlier "just needs a restart" guess. Deterministic reduction on Claude Code today = the MCP
+  `reduce` tool (`harnesstrim mcp`) or the `harnesstrim reduce` shell pipe. Retest on a newer Claude
+  Code; consider a `/feedback` report (draft kept for the user).
 
 - **2026-07-16** — **`harnesstrim` PUBLISHED to npm and verified live (current: 0.0.2).**
   `npm view harnesstrim version` → 0.0.2; `npx harnesstrim@latest doctor` / `… reduce` run from a
