@@ -289,14 +289,14 @@ packages/cli/               harnesstrim CLI: doctor, install, preset, metrics, r
 skills/                     portable Agent Skills (delta-response, debug-log-slim, review-delta,
                             compact-handoff, scaffold-fast, delegate-bulk)
 benchmarks/                 Tier A micro-benchmarks: reducer token-reduction, no LLM involved
-examples/opencode/          minimal opencode.json wiring the adapter (dry-run)
+examples/opencode/          minimal .opencode/ local-plugin wrapper wiring the adapter (dry-run)
 ```
 
 ## CLI
 
 ```sh
 pnpm exec harnesstrim doctor [dir]            # diagnose token-waste signals in a project
-pnpm exec harnesstrim install opencode [dir]  # OpenCode plugin -> opencode.json (dry-run)
+pnpm exec harnesstrim install opencode [dir]  # OpenCode: local plugin wrapper in .opencode/ (dry-run)
 pnpm exec harnesstrim install opencode --preset lean-debug --apply
 pnpm exec harnesstrim install codex [dir]     # Codex: skills + AGENTS.md reduce-pipe (dry-run)
                                              # add --hook for experimental automatic Bash reduction
@@ -349,7 +349,7 @@ harness. "dry-run mode" here means the adapter logs what it *would* slim without
 
 | Harness | Reduces after install? | Make reduction permanent | Telemetry (metrics) |
 | --- | --- | --- | --- |
-| OpenCode | **Yes** — plugin `mode` defaults to `active` | already permanent in `opencode.json`; set `"mode": "dryrun"` there to only preview | off; set plugin option `"telemetry": true` (+ optional `telemetryPath`), read with `harnesstrim metrics <path>` |
+| OpenCode | **Yes** — the local plugin wrapper defaults to `mode: "active"` | permanent once installed; set `mode: "dryrun"` in `.opencode/plugin/harnesstrim.ts` to only preview | **on** when installed via the CLI (the generated wrapper sets `telemetry: true` → `.harnesstrim/metrics.jsonl`), read with `harnesstrim metrics <path>` |
 | Claude Code | **Not yet** — the `PostToolUse` hook fires and is spec-correct, but Claude Code 2.1.37–2.1.212 don't apply `updatedToolOutput`, so the reduction doesn't reach the model (see Status). Use MCP `reduce` / the pipe meanwhile. | n/a until Claude Code honors `updatedToolOutput` | optional: `harnesstrim hook claude --metrics <path>` records what it *would* reduce |
 | Codex | Default: model pipes through `harnesstrim reduce` or calls MCP `reduce`. Experimental `--hook`: automatically reduces supported Bash results. | `AGENTS.md` / MCP, project `--hook`, or global `--hook --global` for trusted projects | hook telemetry is written per project to `.harnesstrim/metrics.jsonl`; MCP/pipe telemetry is manual |
 | Hermes | **No** — starts in `dryrun` | set `HARNESSTRIM_MODE=active` in Hermes' persistent environment | off; set `HARNESSTRIM_TELEMETRY=1`, then run `harnesstrim metrics` |
@@ -365,9 +365,12 @@ Telemetry is **off by default everywhere**; enable it only where you want a metr
 harnesstrim install opencode /path/to/project --apply
 ```
 
-Wires the plugin into `opencode.json`. It reduces tool output automatically via `tool.execute.after`,
-no per-command action needed. The plugin defaults to `"mode": "active"` (reduces immediately); set
-`"mode": "dryrun"` in the plugin options first if you want to preview before enabling. Details:
+Installs a **local plugin wrapper** at `.opencode/plugin/harnesstrim.ts` (plus `.opencode/package.json`,
+whose dependency it installs) and removes any stale adapter entry from `opencode.json`. This is
+required because OpenCode's `plugin` config is a string array that can't pass options — the wrapper is
+how mode/telemetry are applied. It reduces tool output automatically via `tool.execute.after`, defaults
+to `mode: "active"` with telemetry on (→ `.harnesstrim/metrics.jsonl`); set `mode: "dryrun"` in the
+wrapper to preview first. **Reload OpenCode** after installing so it loads the plugin. Details:
 [`packages/adapter-opencode`](packages/adapter-opencode/README.md),
 example: [`examples/opencode`](examples/opencode/).
 

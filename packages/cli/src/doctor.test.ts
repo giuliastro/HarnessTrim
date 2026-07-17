@@ -43,24 +43,33 @@ test("inspect treats a small instruction file as info", () => {
   assert.equal(finding?.severity, "info");
 });
 
-test("inspect detects the adapter wired into opencode.json", () => {
+test("inspect detects the adapter installed as a local plugin wrapper", () => {
   const dir = tmpProject();
-  fs.writeFileSync(
-    path.join(dir, "opencode.json"),
-    JSON.stringify({ plugin: [["@harnesstrim/adapter-opencode", { mode: "active" }]] })
-  );
+  fs.mkdirSync(path.join(dir, ".opencode", "plugin"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".opencode", "plugin", "harnesstrim.ts"), "// wrapper");
   const report = inspect(dir);
-  const finding = report.findings.find((f) => f.title.includes("adapter is wired in"));
+  const finding = report.findings.find((f) => f.title.includes("adapter is installed"));
   assert.equal(finding?.severity, "ok");
 });
 
-test("inspect warns when opencode.json lacks the adapter", () => {
+test("inspect warns when the OpenCode project lacks the adapter", () => {
   const dir = tmpProject();
   fs.writeFileSync(path.join(dir, "opencode.json"), JSON.stringify({ plugin: ["other-plugin"] }));
   const report = inspect(dir);
   const finding = report.findings.find((f) => f.title.includes("adapter not installed"));
   assert.equal(finding?.severity, "warn");
   assert.match(finding?.suggestion ?? "", /install opencode/);
+});
+
+test("inspect flags a stale opencode.json adapter tuple (never loads)", () => {
+  const dir = tmpProject();
+  fs.writeFileSync(
+    path.join(dir, "opencode.json"),
+    JSON.stringify({ plugin: [["@harnesstrim/adapter-opencode", { mode: "active" }]] })
+  );
+  const report = inspect(dir);
+  const finding = report.findings.find((f) => f.title.includes("Stale adapter entry"));
+  assert.equal(finding?.severity, "warn");
 });
 
 test("inspect counts skills", () => {

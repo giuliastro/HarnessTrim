@@ -24,19 +24,40 @@ export function renderDoctor(report: DoctorReport): string {
 
 export function renderInstall(result: InstallResult, apply: boolean): string {
   const lines: string[] = [];
-  if (result.alreadyInstalled) {
-    lines.push(`Already installed: ${result.configPath} already wires in the HarnessTrim adapter.`);
+  const wrapper = result.wrapperPath;
+  const pkg = result.packageJsonPath;
+
+  if (!result.changed) {
+    lines.push(`Already installed and up to date: ${wrapper} loads the HarnessTrim adapter.`);
+    if (result.preset) {
+      lines.push("");
+      lines.push(renderPresetAdvisory(result.preset));
+    }
     return lines.join("\n");
   }
+
   if (apply) {
-    lines.push(`Wrote ${result.configPath}:`);
-    lines.push(JSON.stringify(result.nextConfig, null, 2));
+    lines.push(`Installed the OpenCode adapter as a local plugin:`);
+    lines.push(`  • wrote ${wrapper} (auto-loaded by OpenCode from .opencode/plugin/)`);
+    lines.push(`  • wrote ${pkg} (declares @harnesstrim/adapter-opencode)`);
+    if (result.opencodeJsonContent !== null) {
+      lines.push(`  • cleaned the adapter entry out of ${result.opencodeJsonPath} (options live in the wrapper now)`);
+    }
+    if (result.depsInstalled === true) lines.push(`  • installed the .opencode dependency`);
+    else if (result.depsInstalled === false) lines.push(`  ! ${result.depsMessage}`);
+    lines.push("");
+    lines.push("Reduction is active; telemetry writes to .harnesstrim/metrics.jsonl.");
+    lines.push("Reload OpenCode so it loads the plugin, then check `harnesstrim metrics`.");
   } else {
-    lines.push(`Dry run — no files changed. This is what \`--apply\` would write to ${result.configPath}:`);
+    lines.push(`Dry run — no files changed. \`--apply\` would:`);
+    lines.push(`  • write ${wrapper} (local plugin wrapper with the adapter options)`);
+    lines.push(`  • write ${pkg} (declare @harnesstrim/adapter-opencode) and install it`);
+    if (result.opencodeJsonContent !== null) {
+      lines.push(`  • remove the stale adapter entry from ${result.opencodeJsonPath}`);
+    }
     lines.push("");
-    lines.push(JSON.stringify(result.nextConfig, null, 2));
-    lines.push("");
-    lines.push("Re-run with `--apply` to write it.");
+    lines.push("OpenCode's `plugin` config can't pass options, so the adapter is installed as a");
+    lines.push("local plugin file instead. Re-run with `--apply` to write it.");
   }
   if (result.preset) {
     lines.push("");

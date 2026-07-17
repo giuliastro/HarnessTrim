@@ -103,40 +103,56 @@ function checkSkills(dir: string, findings: Finding[]): void {
 }
 
 function checkOpenCode(dir: string, findings: Finding[]): void {
-  const raw = readIfExists(path.join(dir, "opencode.json"));
-  if (raw === null) {
+  const hasOpencodeProject =
+    readIfExists(path.join(dir, "opencode.json")) !== null || fs.existsSync(path.join(dir, ".opencode"));
+  if (!hasOpencodeProject) {
     findings.push({
       severity: "info",
-      title: "No opencode.json found",
-      detail: "No OpenCode project config in this directory.",
+      title: "No OpenCode project config found",
+      detail: "No opencode.json or .opencode/ in this directory.",
     });
     return;
   }
-  let config: unknown;
-  try {
-    config = JSON.parse(raw);
-  } catch {
-    findings.push({
-      severity: "warn",
-      title: "opencode.json is not valid JSON",
-      detail: "Could not parse opencode.json to check plugin wiring.",
-    });
-    return;
+
+  // The adapter installs as a local plugin wrapper (OpenCode's plugin config can't pass
+  // options), so detect the wrapper file, not an opencode.json entry.
+  const wrapper = path.join(dir, ".opencode", "plugin", "harnesstrim.ts");
+  const wrapperPresent = fs.existsSync(wrapper);
+
+  // A stale opencode.json plugin entry (from older installers) never loaded — flag it.
+  const raw = readIfExists(path.join(dir, "opencode.json"));
+  let staleEntry = false;
+  if (raw !== null) {
+    try {
+      staleEntry = extractPluginNames(JSON.parse(raw)).some((p) => p.includes("@harnesstrim/adapter-opencode"));
+    } catch {
+      /* ignore parse errors here; not the focus of this check */
+    }
   }
-  const plugins = extractPluginNames(config);
-  const installed = plugins.some((p) => p.includes("@harnesstrim/adapter-opencode"));
-  if (installed) {
+
+  if (wrapperPresent) {
     findings.push({
       severity: "ok",
-      title: "HarnessTrim OpenCode adapter is wired in",
-      detail: "@harnesstrim/adapter-opencode is present in opencode.json plugins.",
+      title: "HarnessTrim OpenCode adapter is installed",
+      detail: ".opencode/plugin/harnesstrim.ts loads the adapter (OpenCode auto-loads it).",
     });
   } else {
     findings.push({
       severity: "warn",
-      title: "HarnessTrim adapter not installed in opencode.json",
+      title: "HarnessTrim adapter not installed for OpenCode",
       detail: "The OpenCode adapter would slim tool output automatically.",
-      suggestion: "Run `harnesstrim install opencode` to wire it in.",
+      suggestion: "Run `harnesstrim install opencode --apply` to install the local plugin.",
+    });
+  }
+
+  if (staleEntry && !wrapperPresent) {
+    findings.push({
+      severity: "warn",
+      title: "Stale adapter entry in opencode.json",
+      detail:
+        "opencode.json lists @harnesstrim/adapter-opencode, but OpenCode's plugin field is a string " +
+        "array and ignores option tuples — this entry never loaded.",
+      suggestion: "Run `harnesstrim install opencode --apply` to migrate to the local plugin wrapper.",
     });
   }
 }

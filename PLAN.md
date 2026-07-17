@@ -298,6 +298,29 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   records TrimEvents to `.harnesstrim/metrics.jsonl`; read KPIs with
   `harnesstrim metrics .harnesstrim/metrics.jsonl`.
 
+- **2026-07-17** — **Fixed a real `install opencode` bug found by dogfooding on OpenCode Desktop
+  (LiveTranslation): the adapter never loaded, metrics stayed at zero.** Root cause: `install opencode`
+  wrote the plugin as a `["@harnesstrim/adapter-opencode", { …options }]` **tuple** in `opencode.json`,
+  but OpenCode's `plugin` field is a **plain string array** and **passes no options to plugins**
+  (confirmed against the OpenCode docs, opencode.ai/docs/plugins). OpenCode
+  didn't recognize the tuple as a package name, so it never installed it (absent from
+  `~/.cache/opencode/package.json`) and never loaded it. The Tier B runs "worked" only because they
+  used a **local plugin file** (`.opencode/plugin/*.ts`) calling the adapter with options directly —
+  the tuple path was never validated live.
+  - **Fix (both layers).** (1) Repaired the user's LiveTranslation project with the correct pattern
+    and verified it live via `opencode run` (reduction fired, metrics recorded). (2) Rewrote
+    `install opencode` to generate that pattern for everyone: a **local plugin wrapper**
+    `.opencode/plugin/harnesstrim.ts` importing the published self-contained `@harnesstrim/adapter-opencode`
+    and calling it with options, plus `.opencode/package.json` (dependency auto-installed on `--apply`),
+    and it now **cleans any stale tuple out of `opencode.json`**. The generated wrapper defaults to
+    `mode: active` + `telemetry: true` (explicit install = opt-in; metrics are the only practical
+    signal inside Desktop). `doctor` now detects the wrapper (and flags a stale opencode.json tuple).
+  - **Docs corrected** (they propagated the wrong "options in opencode.json" model): adapter-opencode
+    README, examples/opencode (now a `.opencode/` wrapper example), main README install section + the
+    reduction-mode table. Tests rewritten; 27 CLI tests pass, full suite + typecheck green.
+  - **Lesson:** validate an adapter through the harness's **real** config path, not a hand-written
+    local loader — the loader masked that the documented install produced dead config.
+
 - **2026-07-17** — **Tier B broadened to measured multi-task results (the main remaining Tier B
   work).** Added a second fixture `benchmarks/tierB/task-large-suite/` (20 suites × 12 cases → ~9.1 KB
   / 274 lines of noisy `npm test` output, one failure), generalized `run-e2e.sh` with a `TASK=` env

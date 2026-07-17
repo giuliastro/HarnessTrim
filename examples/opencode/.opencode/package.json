@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@harnesstrim/adapter-opencode": "^0.0.2"
+  }
+}

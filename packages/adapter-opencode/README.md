@@ -10,30 +10,52 @@ HarnessTrim adapter for [OpenCode](https://opencode.ai). A thin plugin that:
 The plugin is deliberately thin: all detection and reduction logic lives in `@harnesstrim/core`
 (and is unit-tested there without a live harness). See the repo [PLAN.md](../../PLAN.md).
 
-## Install (local / development)
+## Install
 
-From an OpenCode project, reference the plugin in `opencode.json`. During development you can point
-at the workspace package directly:
+The easiest way is the CLI, which sets up the local-plugin wrapper below for you:
 
-```json
-{
-  "plugin": ["@harnesstrim/adapter-opencode"]
-}
+```sh
+harnesstrim install opencode /path/to/project --apply
 ```
 
-With options:
+### How OpenCode loads it (important)
 
-```json
-{
-  "plugin": [
-    ["@harnesstrim/adapter-opencode", { "mode": "active", "minLength": 400, "debug": false }]
-  ]
-}
-```
+OpenCode's `opencode.json` `plugin` field is a **plain array of strings** (package names or file
+paths) and **does not pass options to plugins** — the plugin function only receives OpenCode's
+context. So a `["name", { …options }]` tuple in `opencode.json` is **not** valid and silently never
+loads. There are two correct ways to run this adapter:
+
+1. **Local plugin wrapper (recommended — gives you options).** A file auto-loaded from
+   `.opencode/plugin/` that imports the adapter and calls it with options. This is what
+   `harnesstrim install opencode` generates:
+
+   ```ts
+   // .opencode/plugin/harnesstrim.ts
+   import { HarnessTrim } from "@harnesstrim/adapter-opencode";
+   export const HarnessTrimPlugin = async (input) =>
+     HarnessTrim(input, { mode: "active", telemetry: true, telemetryPath: ".harnesstrim/metrics.jsonl" });
+   ```
+
+   with the dependency declared in `.opencode/package.json`:
+
+   ```json
+   { "dependencies": { "@harnesstrim/adapter-opencode": "^0.0.2" } }
+   ```
+
+2. **Bare string + environment variables (no options in config).** List it as a string and drive
+   config through `HARNESSTRIM_*` env vars:
+
+   ```json
+   { "plugin": ["@harnesstrim/adapter-opencode"] }
+   ```
+
+   This loads and reduces (mode `active` by default), but to get telemetry you must set
+   `HARNESSTRIM_TELEMETRY=1` in OpenCode's environment.
 
 ## Configuration
 
-Options (in `opencode.json`) take precedence over environment variables, then defaults.
+Options passed to the wrapper's second argument take precedence over environment variables, then
+defaults. (There is no way to pass options through `opencode.json` — see above.)
 
 | Option              | Env var                   | Default    | Meaning                                                        |
 | ------------------- | ------------------------- | ---------- | -------------------------------------------------------------- |
