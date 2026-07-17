@@ -26,6 +26,18 @@ test("runReduceTool passes through non-reducible text", () => {
   assert.equal(textOf(runReduceTool(plain).content), plain);
 });
 
+test("runReduceTool records a TrimEvent via the sink only when it reduces", () => {
+  const events: unknown[] = [];
+  const sink = (e: unknown) => events.push(e);
+  runReduceTool(noisy, undefined, sink as never);
+  runReduceTool("short plain text", undefined, sink as never);
+  assert.equal(events.length, 1);
+  const e = events[0] as { harness: string; tool: string; reducer: string; beforeChars: number; afterChars: number };
+  assert.equal(e.harness, "mcp");
+  assert.equal(e.tool, "reduce");
+  assert.ok(e.afterChars < e.beforeChars);
+});
+
 test("MCP end-to-end: client lists and calls the reduce tool", async () => {
   const server = createServer();
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

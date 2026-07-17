@@ -52,7 +52,8 @@ Usage:
   harnesstrim preset show <name>           Show a preset in detail
   harnesstrim metrics [path]               Summarize adapter telemetry (JSONL)
   harnesstrim reduce [--stats]             Slim stdin -> stdout (pipe noisy command output)
-  harnesstrim mcp                          Start the MCP server (stdio) exposing a reduce tool
+  harnesstrim mcp [--metrics <path>]       Start the MCP server (stdio) exposing a reduce tool;
+                                           --metrics records a TrimEvent per reduction
   harnesstrim bench                        Run the Tier A reducer micro-benchmark
   harnesstrim --help                       Show this help
 
@@ -209,7 +210,8 @@ async function main(argv: string[]): Promise<number> {
     }
     case "mcp": {
       const { startStdioServer } = await import("@harnesstrim/mcp");
-      await startStdioServer();
+      // --metrics <path> records a TrimEvent per reduction (read with `harnesstrim metrics`).
+      await startStdioServer(values.metrics ? { metricsPath: values.metrics } : {});
       // startStdioServer resolves once connected; keep the process alive for stdio.
       await new Promise<never>(() => {});
       return 0;
