@@ -263,11 +263,11 @@ via `codex debug prompt-input`), **Claude Code** (PostToolUse reducer hook), **H
 (`transform_tool_result` plugin, verified in a live session), and **Pi** (`tool_result` extension),
 plus an MCP `reduce` server, the `harnesstrim` CLI (doctor / install / preset / metrics / reduce /
 hook / mcp / bench), telemetry, and policy presets. All five target harnesses now have an adapter.
-The CLI is **published on npm** (`npx harnesstrim`, latest `0.0.3`) as a single self-contained bundle.
+The CLI is **published on npm** (`npx harnesstrim`) as a single self-contained bundle.
 End-to-end Tier B runs on OpenCode (two tasks × two runs, quality retained in all 8) measured billed-token
 savings of **~2% on a tiny one-tool-call task and ~22–25% on a large-noisy-output task**, with the prompt
 cache preserved — the blended win scales with noisy-output volume vs fixed overhead. A larger multi-model,
-multi-tool-call study is the remaining Tier B work. 129 tests passing, typecheck clean on all packages.
+multi-tool-call study is the remaining Tier B work. 131 tests passing, typecheck clean on all packages.
 
 > **Known limitation (Claude Code):** the `PostToolUse` reducer hook installs and fires correctly, but
 > Claude Code (verified on 2.1.37 and 2.1.212) does not currently apply a hook's `updatedToolOutput`,
