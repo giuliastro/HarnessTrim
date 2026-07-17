@@ -277,12 +277,15 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   2026-07-16 publish entry). Next planned work, in order:
   1. Tier B robustness (more tasks + several runs with a Zen model) to replace the README's
      hypothesized 30–50% with measured numbers.
-  2. **[RESOLVED — NEGATIVE]** The Claude Code PostToolUse `updatedToolOutput` substitution does **not**
-     reach the model in Claude Code 2.1.37, even after a restart (falsified live 2026-07-16 at the
-     transcript level — see that day's entry). Our hook is spec-correct; this is a Claude-Code-side
-     issue. Follow-up: retest on a newer Claude Code; optionally file a `/feedback` bug. Claude Code
-     users get deterministic reduction today via the MCP `reduce` tool or the `harnesstrim reduce`
-     pipe, not the automatic hook.
+  2. **[RESOLVED — NEGATIVE, confirmed on two versions]** The Claude Code PostToolUse
+     `updatedToolOutput` substitution does **not** reach the model in Claude Code **2.1.37 AND
+     2.1.212** (falsified live at the transcript level — see the 2026-07-16 and 2026-07-17 entries).
+     Isolated with a minimal standalone hook: fails whether `updatedToolOutput` is **nested under
+     `hookSpecificOutput`** or **top-level**, so it is NOT our field-placement error — a Claude-Code
+     bug. Our adapter is correct and unchanged. Also learned: Claude Code **reloads
+     `settings.local.json` hooks mid-session** (no restart needed — the old "needs a restart" guess was
+     wrong on two counts). Follow-up: file the bug (draft in the 2026-07-17 entry). Claude Code users
+     get deterministic reduction today via the MCP `reduce` tool or the `harnesstrim reduce` pipe.
   3. Pi live hardening (needs the Pi CLI installed); coverage-driven new reducers (needs accumulated
      real telemetry from `.harnesstrim/metrics.jsonl`).
   4. Follow-ups on the live package: publish skills as part of the package or a `create` flow; add a
@@ -290,6 +293,26 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   Dogfooding is live: the Claude PostToolUse hook (in `.claude/settings.local.json`, gitignored)
   records TrimEvents to `.harnesstrim/metrics.jsonl`; read KPIs with
   `harnesstrim metrics .harnesstrim/metrics.jsonl`.
+
+- **2026-07-17** — **Retested after the user updated the Claude CLI to 2.1.212 (the Windows app and
+  the CLI update separately — updating the app left the CLI at 2.1.37). Bug PERSISTS on 2.1.212, and
+  now isolated to a minimal repro.** Same transcript-level method with unique tokens: the hook fires
+  (metrics grew, `2020 → 187`) but the stored `tool_result` is the raw 2020-char output.
+  - **Field placement ruled out as our bug.** Swapped the installed hook for a minimal standalone
+    script (logs each call; returns a fixed distinctive marker) and confirmed via the transcript that
+    **neither top-level `updatedToolOutput` nor nested-under-`hookSpecificOutput`** is honored — the
+    raw tool output is stored both ways. So HarnessTrim's shape is not the problem.
+  - **Verified the docs first** (`code.claude.com/docs/en/hooks`): `updatedToolOutput` IS documented
+    ("PostToolUse: `updatedToolOutput` replaces the tool's result") but only in the decision-control
+    table, with no field-structure spec — hence the placement test.
+  - **Bonus finding:** Claude Code **reloads `settings.local.json` hook config mid-session** (the test
+    hook's log grew without a restart). The earlier "reduction needs a restart" hypothesis was wrong.
+  - **Ready-to-file bug report** (GitHub: github.com/anthropics/claude-code/issues, or `/bug` in an
+    interactive session): "PostToolUse hook `updatedToolOutput` has no effect — the model/transcript
+    receives the raw tool_output. Repro: a PostToolUse hook (matcher Bash), exit 0, pure-JSON stdout
+    returning `{"hookSpecificOutput":{"hookEventName":"PostToolUse","updatedToolOutput":"REPLACED"}}`
+    (also tried top-level `{"updatedToolOutput":"REPLACED"}`); the session transcript still stores the
+    original output. Confirmed on 2.1.37 and 2.1.212, Windows 11."
 
 - **2026-07-16** — **Claude Code PostToolUse `updatedToolOutput` falsified live at the transcript
   level — the auto-reduction does NOT reach the model in Claude Code 2.1.37 (restart made no
