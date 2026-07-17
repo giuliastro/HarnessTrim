@@ -273,8 +273,9 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
 
 - **RESUME HERE (next session).** Repo is green: CI passes on Linux/Windows/macOS, 119 tests,
   typecheck clean, bench fidelity OK. **`harnesstrim` is LIVE on npm and verified working end-to-end**
-  (`npx harnesstrim@latest doctor` runs from a clean dir; current version **0.0.2** — see the
-  2026-07-16 publish entry). Next planned work, in order:
+  (`npx harnesstrim@latest doctor` runs from a clean dir; **latest = 0.0.3**, verified 2026-07-17:
+  published bin `dist/cli.mjs`, `reduce` slims 753→136 with the failure preserved). Next planned work,
+  in order:
   1. Tier B robustness (more tasks + several runs with a Zen model) to replace the README's
      hypothesized 30–50% with measured numbers.
   2. **[RESOLVED — NEGATIVE, confirmed on two versions]** The Claude Code PostToolUse
