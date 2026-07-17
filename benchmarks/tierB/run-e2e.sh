@@ -21,8 +21,11 @@ fi
 
 OPENCODE="${OPENCODE:-opencode}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TASK_DIR="$SCRIPT_DIR/task-failing-test"
-OUT_DIR="$SCRIPT_DIR/reports"
+# TASK selects which fixture project to run (default: the original small task).
+# e.g. TASK=task-large-suite MODEL=opencode/deepseek-v4-flash-free ./run-e2e.sh
+TASK="${TASK:-task-failing-test}"
+TASK_DIR="$SCRIPT_DIR/$TASK"
+OUT_DIR="$SCRIPT_DIR/reports/$TASK"
 mkdir -p "$OUT_DIR"
 
 PROMPT='Run the test suite with `npm test`, then reply with ONLY the name of the failing test (nothing else).'
@@ -41,7 +44,7 @@ run_condition() {
   if [ -n "$sid" ]; then
     ( cd "$TASK_DIR" && "$OPENCODE" export "$sid" 2>/dev/null ) >"$OUT_DIR/session-$label.json"
     node "$SCRIPT_DIR/sum-session-tokens.mjs" "$OUT_DIR/session-$label.json" >"$OUT_DIR/tokens-$label.json" 2>/dev/null || true
-    billed="$(node -e "try{const t=require('fs').readFileSync(process.argv[1],'utf8');const j=JSON.parse(t);console.log(j.billedTokens+' (fresh input '+(j.input-j.cacheRead)+')')}catch{console.log('?')}" "$OUT_DIR/tokens-$label.json")"
+    billed="$(node -e "try{const t=require('fs').readFileSync(process.argv[1],'utf8');const j=JSON.parse(t);console.log(j.billedTokens+' (input '+j.input+', cacheRead '+j.cacheRead+')')}catch{console.log('?')}" "$OUT_DIR/tokens-$label.json")"
   fi
   echo "  success=$ok  billedTokens=$billed  session=$sid"
   echo "$label|$ok|$billed"

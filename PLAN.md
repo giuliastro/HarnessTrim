@@ -276,8 +276,11 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   (`npx harnesstrim@latest doctor` runs from a clean dir; **latest = 0.0.3**, verified 2026-07-17:
   published bin `dist/cli.mjs`, `reduce` slims 753→136 with the failure preserved). Next planned work,
   in order:
-  1. Tier B robustness (more tasks + several runs with a Zen model) to replace the README's
-     hypothesized 30–50% with measured numbers.
+  1. **[DONE — measured 2026-07-17]** Tier B now has two tasks (small + large noisy output), two runs
+     each, quality retained in all 8. Measured blended savings **~2% (tiny task) → ~22–25% (large-
+     output task)**, with the absolute per-task saving matching the deterministic tool-output
+     reduction and cache preserved. See the 2026-07-17 Tier B entry. Further work (optional): bigger
+     fleets / multi-tool-call tasks / more models for a statistical (not anecdotal) claim.
   2. **[RESOLVED — NEGATIVE, confirmed on two versions]** The Claude Code PostToolUse
      `updatedToolOutput` substitution does **not** reach the model in Claude Code **2.1.37 AND
      2.1.212** (falsified live at the transcript level — see the 2026-07-16 and 2026-07-17 entries).
@@ -294,6 +297,23 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   Dogfooding is live: the Claude PostToolUse hook (in `.claude/settings.local.json`, gitignored)
   records TrimEvents to `.harnesstrim/metrics.jsonl`; read KPIs with
   `harnesstrim metrics .harnesstrim/metrics.jsonl`.
+
+- **2026-07-17** — **Tier B broadened to measured multi-task results (the main remaining Tier B
+  work).** Added a second fixture `benchmarks/tierB/task-large-suite/` (20 suites × 12 cases → ~9.1 KB
+  / 274 lines of noisy `npm test` output, one failure), generalized `run-e2e.sh` with a `TASK=` env
+  var, and ran both tasks × 2 runs each on `opencode/deepseek-v4-flash-free` (OpenCode 1.18.3).
+  - **Fixed a token-accounting bug in `sum-session-tokens.mjs`:** the `opencode export` shape
+    duplicates each assistant message's token record (`messages[i].info.tokens` **and**
+    `messages[i].parts[N].tokens`, plus a session-level `info.tokens`), so the old deep-walk
+    double-counted and inflated totals (and `run-e2e.sh`'s `input − cacheRead` "fresh input" went
+    negative). Now it counts one record per message (`messages[i].info.tokens`); the runner reports
+    `billed (input, cacheRead)` instead of the bogus subtraction.
+  - **Result (all 8 runs succeeded — quality retained):** small task (~1.3 KB out) billed −2.7% /
+    −1.8%; large task (~9.1 KB out) billed **−25.4% / −22.2%**. The absolute Δ is stable and equals
+    each task's deterministic tool-output reduction (~200 vs ~2,700 tokens); `cacheRead` is identical
+    across every vanilla/trimmed pair (prompt cache never busted). Honest shape: the blended win
+    scales with noisy-output volume vs the fixed cached prompt — tiny one-call task ≈ worst case,
+    large noisy output ≈ ~a quarter of billed tokens. Still few-run and single-model, not statistical.
 
 - **2026-07-17** — **Retested after the user updated the Claude CLI to 2.1.212 (the Windows app and
   the CLI update separately — updating the app left the CLI at 2.1.37). Bug PERSISTS on 2.1.212, and

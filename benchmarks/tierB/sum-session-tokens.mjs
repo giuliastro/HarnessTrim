@@ -1,6 +1,12 @@
-// Sum token usage from an `opencode export <sessionID>` JSON dump. Walks the whole
-// structure and accumulates every assistant `tokens` object it finds, so it is robust
-// to the exact export shape. Usage: node sum-session-tokens.mjs <session.json>
+// Sum token usage from an `opencode export <sessionID>` JSON dump.
+//
+// Export shape: { info, messages: [ { info: { tokens }, parts: [...] }, ... ] }.
+// Each assistant message's token record appears TWICE — in `messages[i].info.tokens`
+// AND (duplicated) in `messages[i].parts[N].tokens` — and there is also a session-level
+// `info.tokens` at the top. Summing every token object (a naive deep walk) double-counts.
+// So we count exactly one record per message: `messages[i].info.tokens`.
+//
+// Usage: node sum-session-tokens.mjs <session.json>
 import fs from "node:fs";
 
 const file = process.argv[2];
@@ -13,30 +19,21 @@ const data = JSON.parse(fs.readFileSync(file, "utf8"));
 const total = { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0 };
 let messages = 0;
 
-function isTokens(o) {
-  return o && typeof o === "object" && typeof o.input === "number" && typeof o.output === "number";
-}
-
-function walk(v) {
-  if (Array.isArray(v)) return v.forEach(walk);
-  if (v && typeof v === "object") {
-    if (isTokens(v)) {
-      messages++;
-      total.input += v.input || 0;
-      total.output += v.output || 0;
-      total.reasoning += v.reasoning || 0;
-      if (v.cache && typeof v.cache === "object") {
-        total.cacheRead += v.cache.read || 0;
-        total.cacheWrite += v.cache.write || 0;
-      }
-    }
-    for (const val of Object.values(v)) walk(val);
+const list = Array.isArray(data?.messages) ? data.messages : [];
+for (const m of list) {
+  const t = m?.info?.tokens;
+  if (!t || typeof t.input !== "number") continue; // skip user messages (no token record)
+  messages++;
+  total.input += t.input || 0;
+  total.output += t.output || 0;
+  total.reasoning += t.reasoning || 0;
+  if (t.cache && typeof t.cache === "object") {
+    total.cacheRead += t.cache.read || 0;
+    total.cacheWrite += t.cache.write || 0;
   }
 }
 
-walk(data);
-
-const billed = total.input + total.output + total.reasoning; // new (non-cache) tokens
-console.log(
-  JSON.stringify({ messages, ...total, billedTokens: billed }, null, 2)
-);
+// billed = new (non-cache) tokens the provider charges for; cacheRead is reported
+// separately and is identical across vanilla/trimmed when the prefix is untouched.
+const billed = total.input + total.output + total.reasoning;
+console.log(JSON.stringify({ messages, ...total, billedTokens: billed }, null, 2));

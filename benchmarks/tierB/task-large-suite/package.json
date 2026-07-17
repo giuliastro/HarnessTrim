@@ -1,0 +1,9 @@
+{
+  "name": "tierb-task-large-suite",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Tier B fixture: a LARGE noisy test suite (one failure) — a higher noisy-output-to-overhead ratio than task-failing-test, to show blended session savings scale with output volume.",
+  "scripts": {
+    "test": "node noisy-tests.mjs"
+  }
+}

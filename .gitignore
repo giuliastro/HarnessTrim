@@ -5,7 +5,7 @@ packages/cli/assets/
 .DS_Store
 benchmarks/reports/*.json
 benchmarks/tierB/reports/
-benchmarks/tierB/task-failing-test/harnesstrim-metrics.jsonl
+benchmarks/tierB/*/harnesstrim-metrics.jsonl
 .claude/settings.local.json
 .hardening/
 .hardening-claude/
