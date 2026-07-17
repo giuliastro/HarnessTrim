@@ -273,9 +273,9 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
 
 - **RESUME HERE (next session).** Repo is green: CI passes on Linux/Windows/macOS, 119 tests,
   typecheck clean, bench fidelity OK. **`harnesstrim` is LIVE on npm and verified working end-to-end**
-  (`npx harnesstrim@latest doctor` runs from a clean dir; **latest = 0.0.3**, verified 2026-07-17:
-  published bin `dist/cli.mjs`, `reduce` slims 753→136 with the failure preserved). Next planned work,
-  in order:
+  (`npx harnesstrim@latest doctor` runs from a clean dir; **latest = 0.0.4**, which ships the fixed
+  OpenCode local-plugin install — verified from npm that `install opencode` generates the wrapper, not
+  the dead tuple). Next planned work, in order:
   1. **[DONE — measured 2026-07-17]** Tier B now has two tasks (small + large noisy output), two runs
      each, quality retained in all 8. Measured blended savings **~2% (tiny task) → ~22–25% (large-
      output task)**, with the absolute per-task saving matching the deterministic tool-output
