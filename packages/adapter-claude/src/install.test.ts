@@ -1,13 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
-import { planClaudeInstall, HOOK_COMMAND, HOOK_MATCHER } from "./install.ts";
+import { planClaudeInstall, HOOK_COMMAND, HOOK_MATCHER, HARNESSTRIM_MARKER } from "./install.ts";
 
 const base = {
   projectDir: "/proj",
   skillsSourceDir: "/repo/skills",
   skillNames: ["delta-response", "review-delta"],
   settingsJsonContent: null as string | null,
+  claudeMdContent: null as string | null,
   existingSkillNames: [] as string[],
 };
 
@@ -51,4 +52,22 @@ test("settings action present is idempotent", () => {
 test("marks already-present skills", () => {
   const plan = planClaudeInstall({ ...base, existingSkillNames: ["review-delta"] });
   assert.equal(plan.skills.find((s) => s.name === "review-delta")?.present, true);
+});
+
+test("CLAUDE.md instruction: create when no CLAUDE.md exists", () => {
+  const plan = planClaudeInstall(base);
+  assert.equal(plan.instructionsAction, "create");
+  assert.match(plan.instructionsSnippet, /harnesstrim reduce --metrics/);
+  assert.match(plan.instructionsSnippet, new RegExp(HARNESSTRIM_MARKER));
+  assert.equal(plan.instructionsFile, path.join("/proj", "CLAUDE.md"));
+});
+
+test("CLAUDE.md instruction: append when a CLAUDE.md exists without the marker", () => {
+  const plan = planClaudeInstall({ ...base, claudeMdContent: "# My project\n\nSome notes.\n" });
+  assert.equal(plan.instructionsAction, "append");
+});
+
+test("CLAUDE.md instruction: present (idempotent) when the marker is already there", () => {
+  const plan = planClaudeInstall({ ...base, claudeMdContent: `stuff\n<!-- ${HARNESSTRIM_MARKER} -->\n` });
+  assert.equal(plan.instructionsAction, "present");
 });

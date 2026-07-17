@@ -298,6 +298,22 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   records TrimEvents to `.harnesstrim/metrics.jsonl`; read KPIs with
   `harnesstrim metrics .harnesstrim/metrics.jsonl`.
 
+- **2026-07-17** — **Made Claude Code reduction actually work (and measured), routing around the
+  `updatedToolOutput` bug; MCP `reduce` now records metrics.** Since the PostToolUse hook doesn't reach
+  the model on current Claude Code, added the *effective* paths and wired them into the installer:
+  - **`harnesstrim reduce --metrics <path>`** — the pipe now records a `TrimEvent` (harness `pipe`),
+    so shell-pipe reductions are measured like the hook/adapter.
+  - **MCP `reduce` records metrics** — `harnesstrim mcp --metrics <path>` (or `HARNESSTRIM_TELEMETRY_PATH`)
+    appends a `TrimEvent` (harness `mcp`) per reduction. Registered for the user's Claude at user scope
+    (`claude mcp add-json … --scope user`), verified ✔ Connected + a live reduce call recorded a metric.
+  - **`install claude` now also writes a `CLAUDE.md` reduce-pipe instruction** (marker-guarded,
+    idempotent) telling the model to pipe noisy output through `harnesstrim reduce --metrics …` — the
+    real token saver on Claude today (slims in-shell before the model sees output). The hook stays
+    (works if Anthropic fixes `updatedToolOutput`).
+  - **Applied to LiveTranslation** (`install claude --apply`): skills + hook + CLAUDE.md instruction;
+    pipe `--metrics` verified recording there. Docs updated (adapter-claude + mcp READMEs, main README
+    Claude section + mode table + CLI reduce). Published as **`harnesstrim@0.0.5`**. 135 tests, green.
+
 - **2026-07-17** — **Fixed a real `install opencode` bug found by dogfooding on OpenCode Desktop
   (LiveTranslation): the adapter never loaded, metrics stayed at zero.** Root cause: `install opencode`
   wrote the plugin as a `["@harnesstrim/adapter-opencode", { …options }]` **tuple** in `opencode.json`,

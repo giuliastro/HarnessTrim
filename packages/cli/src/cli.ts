@@ -51,7 +51,9 @@ Usage:
   harnesstrim preset list                  List policy presets
   harnesstrim preset show <name>           Show a preset in detail
   harnesstrim metrics [path]               Summarize adapter telemetry (JSONL)
-  harnesstrim reduce [--stats]             Slim stdin -> stdout (pipe noisy command output)
+  harnesstrim reduce [--stats] [--metrics <path>]
+                                           Slim stdin -> stdout (pipe noisy command output);
+                                           --metrics records a TrimEvent per reduction
   harnesstrim mcp [--metrics <path>]       Start the MCP server (stdio) exposing a reduce tool;
                                            --metrics records a TrimEvent per reduction
   harnesstrim bench                        Run the Tier A reducer micro-benchmark
@@ -200,6 +202,26 @@ async function main(argv: string[]): Promise<number> {
       const input = await readStdin();
       const result = reducePipe(input, minLength);
       process.stdout.write(result.output);
+      // --metrics <path>: append a TrimEvent per reduction, read by `harnesstrim metrics`.
+      if (values.metrics && result.changed) {
+        try {
+          const p = path.resolve(values.metrics);
+          fs.mkdirSync(path.dirname(p), { recursive: true });
+          fs.appendFileSync(
+            p,
+            JSON.stringify({
+              ts: new Date().toISOString(),
+              harness: "pipe",
+              tool: "reduce",
+              reducer: result.reducer,
+              beforeChars: result.beforeChars,
+              afterChars: result.afterChars,
+            }) + "\n"
+          );
+        } catch {
+          /* telemetry must never break the pipe */
+        }
+      }
       if (values.stats) {
         const note = result.changed
           ? `${result.reducer}: ${result.beforeChars} -> ${result.afterChars} chars`

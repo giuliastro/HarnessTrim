@@ -5,6 +5,31 @@ export const HOOK_COMMAND = "harnesstrim hook claude";
 /** Tools whose output the hook reduces. Bash is the shell channel where test/diff output appears. */
 export const HOOK_MATCHER = "Bash";
 
+/** Marker guarding the CLAUDE.md instruction block (idempotent append). */
+export const HARNESSTRIM_MARKER = "harnesstrim:begin";
+
+/**
+ * CLAUDE.md instruction telling the model to pipe noisy output through the reducer. This is
+ * the *effective* reduction path on Claude Code today: the PostToolUse hook is spec-correct
+ * but current Claude Code versions do not apply `updatedToolOutput`, so the pipe (which slims
+ * in the shell before output reaches the model) is what actually saves tokens. `--metrics`
+ * records each reduction so `harnesstrim metrics` can report the savings.
+ */
+export const REDUCE_INSTRUCTION_SNIPPET = `<!-- ${HARNESSTRIM_MARKER} -->
+## Token economy (HarnessTrim)
+
+When a shell command produces long, noisy output — test runners, \`git diff\`, build logs,
+large file dumps — pipe it through the reducer so only the signal enters context:
+
+    <your command> 2>&1 | harnesstrim reduce --metrics .harnesstrim/metrics.jsonl
+
+This keeps failures, errors, assertions, and summaries while dropping passing-test noise and
+generated-file (lockfile/dist) diffs, and records what was saved. Prefer the installed skills
+for output, review, and scaffolding discipline.
+<!-- harnesstrim:end -->`;
+
+export type InstructionsAction = "create" | "append" | "present";
+
 export type SettingsAction = "create" | "patch" | "present";
 
 export interface SkillCopy {
@@ -21,6 +46,10 @@ export interface ClaudeInstallPlan {
   settingsAction: SettingsAction;
   /** The full settings object to write (existing keys preserved, hook added). */
   nextSettings: Record<string, unknown>;
+  /** CLAUDE.md reduce-pipe instruction wiring. */
+  instructionsFile: string;
+  instructionsAction: InstructionsAction;
+  instructionsSnippet: string;
 }
 
 export interface ClaudeInstallInput {
@@ -29,6 +58,8 @@ export interface ClaudeInstallInput {
   skillNames: string[];
   /** Current content of .claude/settings.json, or null if it does not exist. */
   settingsJsonContent: string | null;
+  /** Current content of CLAUDE.md, or null if it does not exist. */
+  claudeMdContent: string | null;
   existingSkillNames: string[];
 }
 
@@ -79,12 +110,22 @@ export function planClaudeInstall(input: ClaudeInstallInput): ClaudeInstallPlan 
 
   const nextSettings = action === "present" ? settings : addHook(settings);
 
+  const instructionsAction: InstructionsAction =
+    input.claudeMdContent === null
+      ? "create"
+      : input.claudeMdContent.includes(HARNESSTRIM_MARKER)
+        ? "present"
+        : "append";
+
   return {
     skillsDest,
     skills,
     settingsFile: path.join(input.projectDir, ".claude", "settings.json"),
     settingsAction: action,
     nextSettings,
+    instructionsFile: path.join(input.projectDir, "CLAUDE.md"),
+    instructionsAction,
+    instructionsSnippet: REDUCE_INSTRUCTION_SNIPPET,
   };
 }
 

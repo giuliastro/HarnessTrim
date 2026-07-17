@@ -27,11 +27,20 @@ export function runInstallClaude(dir: string, apply: boolean): ClaudeInstallResu
     settingsJsonContent = null;
   }
 
+  const claudeMdPath = path.join(dir, "CLAUDE.md");
+  let claudeMdContent: string | null = null;
+  try {
+    claudeMdContent = fs.readFileSync(claudeMdPath, "utf8");
+  } catch {
+    claudeMdContent = null;
+  }
+
   const plan = planClaudeInstall({
     projectDir: dir,
     skillsSourceDir,
     skillNames,
     settingsJsonContent,
+    claudeMdContent,
     existingSkillNames: existingSkillNames(skillsDest),
   });
 
@@ -46,6 +55,11 @@ export function runInstallClaude(dir: string, apply: boolean): ClaudeInstallResu
     if (plan.settingsAction !== "present") {
       fs.mkdirSync(path.dirname(plan.settingsFile), { recursive: true });
       fs.writeFileSync(plan.settingsFile, JSON.stringify(plan.nextSettings, null, 2) + "\n");
+    }
+    if (plan.instructionsAction === "create") {
+      fs.writeFileSync(plan.instructionsFile, plan.instructionsSnippet + "\n");
+    } else if (plan.instructionsAction === "append") {
+      fs.appendFileSync(plan.instructionsFile, "\n\n" + plan.instructionsSnippet + "\n");
     }
     applied = true;
   }

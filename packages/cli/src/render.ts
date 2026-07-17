@@ -188,7 +188,19 @@ export function renderClaudeInstall(result: ClaudeInstallResult, apply: boolean)
     }
   }
   lines.push("");
-  lines.push("Note: the hook command is `harnesstrim hook claude` — ensure harnesstrim is on PATH.");
+  if (plan.instructionsAction === "present") {
+    lines.push(`${plan.instructionsFile}: reduce-pipe instruction already present (no change).`);
+  } else {
+    lines.push(
+      `${plan.instructionsFile}: reduce-pipe instruction ${apply ? (plan.instructionsAction === "create" ? "created" : "appended") : "would be added"}.`
+    );
+  }
+  lines.push("");
+  lines.push("Note: `harnesstrim` must be on PATH (used by both the hook and the reduce pipe).");
+  lines.push(
+    "The CLAUDE.md instruction is the effective path today: current Claude Code versions don't apply"
+  );
+  lines.push("the hook's updatedToolOutput, so piping through `harnesstrim reduce` is what saves tokens.");
   if (!apply) lines.push("Dry run — nothing written. Re-run with `--apply`.");
   return lines.join("\n");
 }

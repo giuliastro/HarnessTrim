@@ -4,27 +4,31 @@ HarnessTrim adapter for [Claude Code](https://code.claude.com).
 
 Claude Code fires `PostToolUse` hooks for every tool, and the hooks reference documents that such a
 hook can rewrite what the model sees by returning `hookSpecificOutput.updatedToolOutput`. This adapter
-targets that contract to slim tool output, and installs the portable skill pack:
+targets that contract to slim tool output. `install claude` sets up three things:
 
 1. **Skill bundle** — copies the skills into `<project>/.claude/skills`.
 2. **PostToolUse reducer hook** — registers a hook (matched to `Bash`) in `.claude/settings.json`
    that runs `harnesstrim hook claude`, computing a slimmed version of noisy shell output.
+3. **CLAUDE.md reduce-pipe instruction** — the *effective* path today (see the limitation below):
+   tells the model to pipe noisy output through `harnesstrim reduce --metrics .harnesstrim/metrics.jsonl`,
+   which slims **in the shell before output reaches the model** (real token saving) and records it.
 
 > **Known limitation:** as of Claude Code **2.1.37–2.1.212** the `updatedToolOutput` field is **not
 > honored** — the hook fires and returns a spec-correct response, but the model still receives the raw
 > output (confirmed at the transcript level; see Status). This is a Claude-Code-side issue, not an
-> adapter defect. Until it's fixed, reduce on Claude Code via the MCP `reduce` tool (`harnesstrim mcp`)
-> or the `harnesstrim reduce` pipe.
+> adapter defect. So the hook alone doesn't reduce yet; the **CLAUDE.md pipe instruction** (above) and
+> the **MCP `reduce` tool** (`harnesstrim mcp --metrics <path>`) are the working, measured paths.
 
 ## Install
 
 ```sh
-harnesstrim install claude           # dry-run: shows skills + the settings.json hook it would add
-harnesstrim install claude --apply   # writes it
+harnesstrim install claude           # dry-run: shows the skills, hook and CLAUDE.md it would add
+harnesstrim install claude --apply   # writes them
 ```
 
-Existing `settings.json` keys and other hooks are preserved; the reducer hook is added only once
-(idempotent). The hook command is `harnesstrim hook claude` — ensure `harnesstrim` is on PATH.
+Existing `settings.json` keys/hooks and any existing `CLAUDE.md` are preserved; the hook and the
+CLAUDE.md instruction block (marker-guarded) are each added only once (idempotent). Both the hook and
+the reduce pipe need `harnesstrim` on PATH.
 
 ## The hook runtime
 

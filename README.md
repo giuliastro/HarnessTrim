@@ -306,7 +306,8 @@ pnpm exec harnesstrim install hermes [dir]    # Hermes Agent: transform_tool_res
 pnpm exec harnesstrim install pi [dir]        # Pi: tool_result extension (dry-run)
 pnpm exec harnesstrim preset list             # list policy presets
 pnpm exec harnesstrim metrics [path]          # summarize adapter telemetry (JSONL)
-npm test 2>&1 | pnpm exec harnesstrim reduce  # pipe: slim noisy output (Codex/shell)
+npm test 2>&1 | pnpm exec harnesstrim reduce  # pipe: slim noisy output (Codex/Claude/shell)
+npm test 2>&1 | pnpm exec harnesstrim reduce --metrics .harnesstrim/metrics.jsonl  # + record the saving
 pnpm exec harnesstrim bench                    # run the Tier A reducer micro-benchmark
 ```
 
@@ -350,7 +351,7 @@ harness. "dry-run mode" here means the adapter logs what it *would* slim without
 | Harness | Reduces after install? | Make reduction permanent | Telemetry (metrics) |
 | --- | --- | --- | --- |
 | OpenCode | **Yes** — the local plugin wrapper defaults to `mode: "active"` | permanent once installed; set `mode: "dryrun"` in `.opencode/plugin/harnesstrim.ts` to only preview | **on** when installed via the CLI (the generated wrapper sets `telemetry: true` → `.harnesstrim/metrics.jsonl`), read with `harnesstrim metrics <path>` |
-| Claude Code | **Not yet** — the `PostToolUse` hook fires and is spec-correct, but Claude Code 2.1.37–2.1.212 don't apply `updatedToolOutput`, so the reduction doesn't reach the model (see Status). Use MCP `reduce` / the pipe meanwhile. | n/a until Claude Code honors `updatedToolOutput` | optional: `harnesstrim hook claude --metrics <path>` records what it *would* reduce |
+| Claude Code | **Via the pipe / MCP** — the `PostToolUse` hook is spec-correct but Claude Code 2.1.37–2.1.212 don't apply `updatedToolOutput`, so `install claude` also adds a `CLAUDE.md` instruction to pipe noisy output through `harnesstrim reduce` (slims in-shell before the model sees it) and registers the MCP `reduce` tool. | keep the CLAUDE.md instruction / MCP registration | **on** — the pipe instruction uses `harnesstrim reduce --metrics .harnesstrim/metrics.jsonl`; the MCP server records too (`--metrics`) |
 | Codex | Default: model pipes through `harnesstrim reduce` or calls MCP `reduce`. Experimental `--hook`: automatically reduces supported Bash results. | `AGENTS.md` / MCP, project `--hook`, or global `--hook --global` for trusted projects | hook telemetry is written per project to `.harnesstrim/metrics.jsonl`; MCP/pipe telemetry is manual |
 | Hermes | **No** — starts in `dryrun` | set `HARNESSTRIM_MODE=active` in Hermes' persistent environment | off; set `HARNESSTRIM_TELEMETRY=1`, then run `harnesstrim metrics` |
 | Pi | **No** — starts in `dryrun` | set `HARNESSTRIM_MODE=active` **persistently** in Pi's environment | none yet (the extension only reduces) |
@@ -420,13 +421,27 @@ Details: [`packages/adapter-codex`](packages/adapter-codex/README.md),
 harnesstrim install claude /path/to/project --apply
 ```
 
-Copies the skill pack into `.claude/skills` and adds a `PostToolUse` hook (matched to `Bash`) to
-`.claude/settings.json`. The hook runs `harnesstrim hook claude`, so `harnesstrim` must be on PATH;
-reload Claude Code so the hook loads. **Caveat:** the hook is spec-correct and fires, but Claude Code
-(2.1.37–2.1.212) does not currently apply a hook's `updatedToolOutput`, so the slimmed output does not
-yet reach the model — a Claude-Code-side issue (see Status). Until it's fixed, reduce on Claude Code
-via the MCP `reduce` tool or the `harnesstrim reduce` pipe. Details:
-[`packages/adapter-claude`](packages/adapter-claude/README.md).
+Installs three things (so `harnesstrim` must be on PATH):
+
+1. **The skill pack** → `.claude/skills`.
+2. **A `PostToolUse` hook** (matcher `Bash`) → `.claude/settings.json`. **Caveat:** the hook is
+   spec-correct and fires, but Claude Code (2.1.37–2.1.212) does not currently apply a hook's
+   `updatedToolOutput`, so on its own it does **not** yet reduce what the model sees (a Claude-Code-side
+   issue — see Status). It stays for when Anthropic fixes that.
+3. **A `CLAUDE.md` reduce-pipe instruction** — the *effective* path today. It tells the model to pipe
+   noisy commands through `harnesstrim reduce --metrics .harnesstrim/metrics.jsonl`, which slims output
+   **in the shell before it reaches the model** (real token saving) and records the saving.
+
+For a native, always-available tool, also register the MCP reducer (records metrics too):
+
+```sh
+claude mcp add-json harnesstrim-reduce \
+  '{"command":"harnesstrim","args":["mcp","--metrics","~/.harnesstrim/metrics.jsonl"]}' --scope user
+```
+
+Reload Claude Code after installing. Details:
+[`packages/adapter-claude`](packages/adapter-claude/README.md),
+[`packages/mcp`](packages/mcp/README.md).
 
 ### Hermes Agent
 
