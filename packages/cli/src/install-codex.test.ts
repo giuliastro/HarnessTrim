@@ -17,7 +17,8 @@ test("installs the optional Codex hook only when requested", () => {
   const result = runInstallCodex(dir, true, true);
   assert.equal(result.hookPlan?.action, "create");
   const written = JSON.parse(fs.readFileSync(path.join(dir, ".codex", "hooks.json"), "utf8"));
-  assert.match(JSON.stringify(written), /harnesstrim hook codex --metrics/);
+  assert.match(JSON.stringify(written), /harnesstrim(?:\\\.CMD)?/);
+  assert.match(JSON.stringify(written), /hook codex --metrics/);
 });
 
 test("Codex hook install is idempotent", () => {
@@ -34,5 +35,7 @@ test("global hook install writes only the Codex-home hooks file", () => {
   assert.equal(result.hookPlan.hooksFile, path.join(codexHome, "hooks.json"));
   assert.equal(fs.existsSync(path.join(home, "AGENTS.md")), false);
   assert.equal(fs.existsSync(path.join(codexHome, "skills")), false);
-  assert.match(fs.readFileSync(path.join(codexHome, "hooks.json"), "utf8"), /harnesstrim hook codex/);
+  const written = fs.readFileSync(path.join(codexHome, "hooks.json"), "utf8");
+  assert.match(written, /harnesstrim(?:\.CMD)?/);
+  assert.match(written, /hook codex/);
 });

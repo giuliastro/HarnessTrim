@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
-import { planCodexHookInstall, planCodexInstall, HARNESSTRIM_MARKER } from "./index.ts";
+import { CODEX_HOOK_COMMAND, planCodexHookInstall, planCodexInstall, HARNESSTRIM_MARKER } from "./index.ts";
 
 const base = {
   projectDir: "/proj",
@@ -53,6 +53,28 @@ test("plans an optional Codex Bash PostToolUse hook with telemetry", () => {
   const post = (plan.nextHooks.hooks as Record<string, unknown>).PostToolUse as Array<Record<string, unknown>>;
   assert.equal(post[0].matcher, "^Bash$");
   assert.match(JSON.stringify(post), /harnesstrim hook codex --metrics/);
+});
+
+test("uses an explicit hook command when the installer supplies one", () => {
+  const plan = planCodexHookInstall({
+    projectDir: "/proj",
+    hooksJsonContent: null,
+    hookCommand: '"C:\\Users\\me\\AppData\\Local\\pnpm\\harnesstrim.CMD" hook codex --metrics .harnesstrim/metrics.jsonl',
+  });
+  assert.match(JSON.stringify(plan.nextHooks), /harnesstrim\.CMD/);
+});
+
+test("upgrades an existing portable hook to an explicit command", () => {
+  const plan = planCodexHookInstall({
+    projectDir: "/proj",
+    hooksJsonContent: JSON.stringify({
+      hooks: { PostToolUse: [{ matcher: "^Bash$", hooks: [{ type: "command", command: CODEX_HOOK_COMMAND }] }] },
+    }),
+    hookCommand: '"C:\\harnesstrim.CMD" hook codex --metrics .harnesstrim/metrics.jsonl',
+  });
+  assert.equal(plan.action, "patch");
+  const post = (plan.nextHooks.hooks as Record<string, unknown>).PostToolUse as Array<Record<string, unknown>>;
+  assert.equal((post[0].hooks as Array<Record<string, unknown>>)[0].command, '"C:\\harnesstrim.CMD" hook codex --metrics .harnesstrim/metrics.jsonl');
 });
 
 test("keeps an existing Codex hook idempotent", () => {

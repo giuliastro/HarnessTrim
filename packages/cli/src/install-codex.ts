@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { planCodexHookInstall, planCodexInstall, type CodexHookInstallPlan, type CodexInstallPlan } from "@harnesstrim/adapter-codex";
 import { resolveSkillsSourceDir, listShippedSkills, existingSkillNames } from "./skills-source.ts";
@@ -13,6 +14,19 @@ export interface CodexInstallResult {
 export interface CodexGlobalHookInstallResult {
   hookPlan: CodexHookInstallPlan;
   applied: boolean;
+}
+
+/**
+ * Codex Desktop launches hooks outside the interactive shell, where pnpm's
+ * user bin directory is not always on PATH. Prefer its absolute .CMD shim on
+ * Windows, retaining the portable command elsewhere and for npm installs.
+ */
+function resolveCodexHookCommand(): string | undefined {
+  if (process.platform !== "win32") return undefined;
+  const pnpmHome = process.env.PNPM_HOME ?? path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), "AppData", "Local"), "pnpm");
+  const shim = path.join(pnpmHome, "harnesstrim.CMD");
+  if (!fs.existsSync(shim)) return undefined;
+  return `"${shim}" hook codex --metrics .harnesstrim/metrics.jsonl`;
 }
 
 function readHooksJson(hooksPath: string): string | null {
@@ -59,7 +73,9 @@ export function runInstallCodex(dir: string, apply: boolean, hook: boolean = fal
 
   const hooksPath = path.join(dir, ".codex", "hooks.json");
   const hooksJsonContent = hook ? readHooksJson(hooksPath) : null;
-  const hookPlan = hook ? planCodexHookInstall({ projectDir: dir, hooksJsonContent }) : null;
+  const hookPlan = hook
+    ? planCodexHookInstall({ projectDir: dir, hooksJsonContent, hookCommand: resolveCodexHookCommand() })
+    : null;
 
   const copied: string[] = [];
   let applied = false;
@@ -93,6 +109,7 @@ export function runInstallCodexGlobalHook(codexHome: string, apply: boolean): Co
     // the Codex home is itself that directory, so add its parent and use a normal path.
     projectDir: path.dirname(codexHome),
     hooksJsonContent: readHooksJson(hooksPath),
+    hookCommand: resolveCodexHookCommand(),
   });
   // `planCodexHookInstall` produces <projectDir>/.codex/hooks.json. With the parent of
   // CODEX_HOME above, that is exactly the requested user-level hooks file.

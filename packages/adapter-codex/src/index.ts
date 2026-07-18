@@ -81,6 +81,12 @@ export interface CodexHookInstallInput {
   projectDir: string;
   /** Current .codex/hooks.json content, or null when it does not exist. */
   hooksJsonContent: string | null;
+  /**
+   * Command to run for the hook.  The CLI supplies an absolute Windows shim
+   * when available: Codex Desktop does not guarantee that a user's pnpm
+   * directory is present in a hook process PATH.
+   */
+  hookCommand?: string;
 }
 
 function hasHarnessTrimHook(document: Record<string, unknown>): boolean {
@@ -89,8 +95,35 @@ function hasHarnessTrimHook(document: Record<string, unknown>): boolean {
   if (!Array.isArray(post)) return false;
   return post.some((entry: HookEntry) =>
     Array.isArray(entry?.hooks) &&
-    entry.hooks.some((hook) => typeof hook?.command === "string" && hook.command.includes("harnesstrim hook codex"))
+    entry.hooks.some(
+      (hook) =>
+        typeof hook?.command === "string" &&
+        hook.command.includes("harnesstrim") &&
+        hook.command.includes("hook codex")
+    )
   );
+}
+
+function hasExactHarnessTrimHookCommand(document: Record<string, unknown>, command: string): boolean {
+  const hooks = document.hooks as Record<string, unknown> | undefined;
+  const post = hooks?.PostToolUse;
+  return Array.isArray(post) && post.some((entry: HookEntry) =>
+    Array.isArray(entry?.hooks) && entry.hooks.some((hook) => hook?.command === command)
+  );
+}
+
+function replaceHarnessTrimHookCommand(document: Record<string, unknown>, command: string): void {
+  const hooks = document.hooks as Record<string, unknown> | undefined;
+  const post = hooks?.PostToolUse;
+  if (!Array.isArray(post)) return;
+  for (const entry of post as HookEntry[]) {
+    if (!Array.isArray(entry?.hooks)) continue;
+    for (const hook of entry.hooks) {
+      if (typeof hook?.command === "string" && hook.command.includes("harnesstrim") && hook.command.includes("hook codex")) {
+        hook.command = command;
+      }
+    }
+  }
 }
 
 /**
@@ -114,16 +147,26 @@ export function planCodexHookInstall(input: CodexHookInstallInput): CodexHookIns
       throw new Error(".codex/hooks.json must contain a JSON object; refusing to overwrite it.");
     }
     document = parsed as Record<string, unknown>;
-    action = hasHarnessTrimHook(document) ? "present" : "patch";
+    action = hasHarnessTrimHook(document) && (!input.hookCommand || hasExactHarnessTrimHookCommand(document, input.hookCommand))
+      ? "present"
+      : "patch";
   }
 
   if (action === "present") {
     return { hooksFile: path.join(input.projectDir, ".codex", "hooks.json"), action, nextHooks: document };
   }
 
+  if (hasHarnessTrimHook(document)) {
+    replaceHarnessTrimHookCommand(document, input.hookCommand ?? CODEX_HOOK_COMMAND);
+    return { hooksFile: path.join(input.projectDir, ".codex", "hooks.json"), action, nextHooks: document };
+  }
+
   const hooks: Record<string, unknown> = { ...((document.hooks as Record<string, unknown>) ?? {}) };
   const post: HookEntry[] = Array.isArray(hooks.PostToolUse) ? [...(hooks.PostToolUse as HookEntry[])] : [];
-  post.push({ matcher: CODEX_HOOK_MATCHER, hooks: [{ type: "command", command: CODEX_HOOK_COMMAND }] });
+  post.push({
+    matcher: CODEX_HOOK_MATCHER,
+    hooks: [{ type: "command", command: input.hookCommand ?? CODEX_HOOK_COMMAND }],
+  });
   hooks.PostToolUse = post;
 
   return {
