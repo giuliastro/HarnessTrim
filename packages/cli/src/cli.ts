@@ -13,6 +13,8 @@ import { runInstallHermes } from "./install-hermes.ts";
 import { reduceClaudePayload } from "@harnesstrim/adapter-claude";
 import { reduceCodexPayload } from "@harnesstrim/adapter-codex";
 import { loadMetrics, DEFAULT_METRICS_PATH } from "./metrics.ts";
+import pkg from "../package.json" with { type: "json" };
+
 import { readStdin, reducePipe } from "./reduce.ts";
 import {
   renderDoctor,
@@ -57,7 +59,7 @@ Usage:
   harnesstrim mcp [--metrics <path>]       Start the MCP server (stdio) exposing a reduce tool;
                                            --metrics records a TrimEvent per reduction
   harnesstrim bench                        Run the Tier A reducer micro-benchmark
-  harnesstrim --help                       Show this help
+  harnesstrim --version                    Print the installed version
 
 Notes:
   - install is dry-run by default; nothing is written without --apply.
@@ -70,6 +72,7 @@ async function main(argv: string[]): Promise<number> {
     allowPositionals: true,
     options: {
       help: { type: "boolean", short: "h" },
+      version: { type: "boolean", short: "v" },
       apply: { type: "boolean" },
       preset: { type: "string" },
       stats: { type: "boolean" },
@@ -82,6 +85,11 @@ async function main(argv: string[]): Promise<number> {
   });
 
   const [command, ...rest] = positionals;
+
+  if (values.version) {
+    console.log(pkg.version);
+    return 0;
+  }
 
   if (values.help || !command) {
     console.log(HELP);
