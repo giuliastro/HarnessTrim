@@ -31,6 +31,8 @@ export interface PiInstallInput {
   extensionDirExists: boolean;
   /** Whether the `.installed` marker inside the extension dir indicates a prior install. */
   markerPresent: boolean;
+  /** Whether installation targets the user's global Pi extension directory. */
+  scope?: "user" | "project";
 }
 
 /**
@@ -38,7 +40,9 @@ export interface PiInstallInput {
  * considered already installed when its dir exists and the marker is present.
  */
 export function planPiInstall(input: PiInstallInput): PiInstallPlan {
-  const extensionDest = path.join(input.installDir, ".pi", "extensions", PI_EXTENSION_NAME);
+  const extensionDest = input.scope === "user"
+    ? path.join(input.installDir, ".pi", "agent", "extensions", PI_EXTENSION_NAME)
+    : path.join(input.installDir, ".pi", "extensions", PI_EXTENSION_NAME);
   return {
     extensionDest,
     extensionSource: input.extensionSourceDir,

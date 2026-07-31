@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { planPiInstall, markerFileContent, type PiInstallPlan } from "@harnesstrim/adapter-pi";
 import { resolvePiExtensionSourceDir } from "./assets.ts";
 
@@ -26,24 +27,27 @@ function markerPresent(dest: string): boolean {
 }
 
 /**
- * Compute (and optionally apply) a Pi install: copy the extension bundle into
- * `<installDir>/.pi/extensions/harnesstrim/`. Dry-run by default; idempotent via a
- * `.installed` marker.
+ * `<installDir>/.pi/extensions/harnesstrim/`. Dry-run by default; `--apply` is
+ * safe to repeat and refreshes the installed extension bundle.
  */
 export function runInstallPi(installDir: string, apply: boolean): PiInstallResult {
   const extensionSourceDir = resolvePiExtensionSourceDir();
-  const dest = path.join(installDir, ".pi", "extensions", "harnesstrim");
+  const scope = path.resolve(installDir) === path.resolve(os.homedir()) ? "user" : "project";
+  const dest = scope === "user"
+    ? path.join(installDir, ".pi", "agent", "extensions", "harnesstrim")
+    : path.join(installDir, ".pi", "extensions", "harnesstrim");
 
   const plan = planPiInstall({
     installDir,
     extensionSourceDir,
     extensionDirExists: dirExists(dest),
     markerPresent: markerPresent(dest),
+    scope,
   });
 
   const copiedFiles: string[] = [];
   let applied = false;
-  if (apply && !plan.alreadyInstalled) {
+  if (apply) {
     fs.mkdirSync(dest, { recursive: true });
     for (const entry of fs.readdirSync(extensionSourceDir, { withFileTypes: true })) {
       if (!entry.isDirectory()) {

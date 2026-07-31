@@ -5,8 +5,8 @@ HarnessTrim adapter for [Pi](https://pi.dev) (`@earendil-works/pi-coding-agent`)
 Pi loads TypeScript extensions from `~/.pi/agent/extensions/` (global) or `<project>/.pi/extensions/`
 (project-local). Our extension registers a **`tool_result`** handler — Pi's post-tool hook, which
 fires after a tool finishes and before the result reaches the model and lets handlers return a patch
-(`content` / `details` / `isError`). We slim string `content` for noisy output, analogous to
-OpenCode's `tool.execute.after`.
+(`content` / `details` / `isError`). We slim text chunks in the structured `content` array for noisy
+output, analogous to OpenCode's `tool.execute.after`.
 
 The extension is **self-contained**: it shells out to `harnesstrim reduce` (no workspace imports), so
 it loads from any Pi extensions directory. `harnesstrim` must be on PATH; if it's missing the output
@@ -20,7 +20,8 @@ harnesstrim install pi --apply            # -> <project>/.pi/extensions/harnesst
 harnesstrim install pi ~ --apply          # global: ~/.pi/... (pass your home dir)
 ```
 
-Idempotent via a `.installed` marker. Copies the extension bundle; Pi discovers it on next start.
+Each `--apply` refreshes the extension bundle and its `.installed` marker; Pi discovers the result on
+next start.
 
 ## Mode
 

@@ -269,7 +269,63 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
 - Real tokenizer choice for Tier A micro-benchmarks (tiktoken vs. Anthropic's tokenizer) — pick per
   target harness's model family, may need both.
 
-## 9. Status log
+## 9. Next-version development plan
+
+### v0.0.6 — installation and adapter hardening
+
+**Goal:** make every published CLI path work from a clean npm installation and close the remaining
+Pi integration uncertainty.
+
+- Ship `--version`/`-v` in the CLI and preserve the bundled-asset resolver for every installer.
+- Validate Pi's structured `tool_result.content` against a live Pi session in both `dryrun` and
+  `active` modes. Confirm that text chunks shrink, non-text chunks are unchanged, failed reductions
+  pass through, and the marker prevents a second reduction.
+- Test both Pi install scopes: project (`<project>/.pi/extensions`) and user
+  (`~/.pi/agent/extensions`), including a second `--apply` that refreshes the bundle.
+- Add a clean-package smoke test that runs each installer from `npm pack` output, so source-layout
+  assumptions cannot regress.
+
+**Exit criteria:** live Pi proof recorded; packaged CLI installation smoke tests pass; every adapter's
+documented install path works from an empty directory.
+
+### v0.1.0 — trustworthy measurement and release automation
+
+**Goal:** graduate from individual reducer wins to evidence-driven defaults.
+
+- Collect opt-in `TrimEvent` telemetry from dogfooding; add reducers only for repeated, measurable
+  noisy-output classes while retaining signal-recall gates.
+- Extend `harnesstrim metrics` with per-harness and per-reducer savings, pass-through rate, and
+  reduction-error counts. Never record tool payloads by default.
+- Add release CI: typecheck, tests, Tier A fidelity benchmark, package smoke test, version/tag
+  validation, npm publish, and generated release notes.
+
+**Exit criteria:** the release pipeline publishes a tested package; reducer additions are supported by
+telemetry and preserve benchmark signal recall.
+
+### v0.2.0 — representative end-to-end evidence
+
+**Goal:** demonstrate savings across real multi-tool coding tasks without degrading task outcomes.
+
+- Expand Tier B to multi-tool tasks, multiple output volumes, and repeated runs on fixed model
+  versions. Report fresh input, cache reads, total billed tokens, success rate, and failure modes
+  separately.
+- Run the same matrix for each harness where deterministic interception is available; describe the
+  Claude/Codex MCP and pipe paths separately from native result hooks.
+- Publish fixtures, raw normalized measurements, and methodology; state confidence bounds and avoid
+  aggregate savings claims that hide cache effects.
+
+**Exit criteria:** reproducible benchmark data shows retained task quality and clearly bounded token
+savings for each supported integration path.
+
+### Deferred unless evidence changes
+
+- Do not add an unrestricted command-execution MCP tool: it would bypass harness sandboxing.
+- Do not rewrite stable instruction prefixes: it risks prompt-cache invalidation.
+- Do not raise the release line beyond `0.x` until package install, live adapter behavior, and
+multi-tool Tier B evidence are all repeatable.
+
+## 10. Status log
+
 
 - **RESUME HERE (next session).** Repo is green: CI passes on Linux/Windows/macOS, 119 tests,
   typecheck clean, bench fidelity OK. **`harnesstrim` is LIVE on npm and verified working end-to-end**
