@@ -17,6 +17,11 @@ test("plans the extension into .pi/extensions/harnesstrim", () => {
   assert.equal(plan.alreadyInstalled, false);
 });
 
+test("plans a user install into .pi/agent/extensions/harnesstrim", () => {
+  const plan = planPiInstall({ ...base, scope: "user" });
+  assert.equal(plan.extensionDest, path.join("/proj", ".pi", "agent", "extensions", PI_EXTENSION_NAME));
+});
+
 test("not already-installed when the dir exists but the marker is missing", () => {
   const plan = planPiInstall({ ...base, extensionDirExists: true, markerPresent: false });
   assert.equal(plan.alreadyInstalled, false);
