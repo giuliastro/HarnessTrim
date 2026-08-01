@@ -6,6 +6,7 @@ import type { CodexGlobalHookInstallResult, CodexInstallResult } from "./install
 import type { ClaudeInstallResult } from "./install-claude.ts";
 import type { PiInstallResult } from "./install-pi.ts";
 import type { HermesInstallResult } from "./install-hermes.ts";
+import type { UninstallResult } from "./uninstall.ts";
 
 const ICON: Record<Severity, string> = { warn: "!", info: "i", ok: "+" };
 
@@ -282,5 +283,35 @@ export function renderMetrics(result: MetricsResult): string {
     const p = b.beforeChars === 0 ? 0 : Math.round((b.savedChars / b.beforeChars) * 1000) / 10;
     lines.push(`  ${b.reducer.padEnd(20)} ${b.count}x  saved ${b.savedChars} chars (-${p}%)`);
   }
+  return lines.join("\n");
+}
+
+export function renderUninstall(result: UninstallResult, apply: boolean): string {
+  const lines: string[] = [`${apply ? "Uninstalled" : "Would uninstall"} ${result.harness} integration`, ""];
+  if (!result.changed) {
+    lines.push("Nothing to remove — no HarnessTrim files found in the install set.");
+    return lines.join("\n");
+  }
+  for (const action of result.actions) {
+    const verb =
+      action.type === "remove-file" || action.type === "remove-dir"
+        ? apply
+          ? "removed"
+          : "remove"
+        : action.type === "write"
+          ? apply
+            ? "updated"
+            : "update"
+          : "clean";
+    lines.push(`  ${verb.padEnd(8)} ${action.path}`);
+    if (action.note) lines.push(`             (${action.note})`);
+  }
+  if (!apply) {
+    lines.push("");
+    lines.push("Dry run — nothing written. Re-run with `--apply`.");
+  }
+  lines.push("");
+  lines.push("Only files HarnessTrim wrote are touched; marker-guarded regions and your");
+  lines.push("other settings/hook entries are preserved.");
   return lines.join("\n");
 }

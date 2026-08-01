@@ -47,6 +47,22 @@ test("snippet documents the reduce pipe", () => {
   assert.match(plan.instructionsSnippet, /harnesstrim reduce/);
 });
 
+test("includeInstructions:false produces a skills-only state", () => {
+  const plan = planCodexInstall({ ...base, includeInstructions: false });
+  assert.equal(plan.instructionsAction, "present");
+});
+
+test("plan.changed is false when a skills-only install is already in that state", () => {
+  const first = planCodexInstall({ ...base, includeInstructions: false });
+  assert.equal(first.changed, true);
+  const rerun = planCodexInstall({
+    ...base,
+    includeInstructions: false,
+    existingSkillNames: base.skillNames,
+  });
+  assert.equal(rerun.changed, false);
+});
+
 test("plans an optional Codex Bash PostToolUse hook with telemetry", () => {
   const plan = planCodexHookInstall({ projectDir: "/proj", hooksJsonContent: null });
   assert.equal(plan.action, "create");

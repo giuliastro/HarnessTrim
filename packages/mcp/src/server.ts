@@ -4,7 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { reduceAuto, type TrimEvent } from "@harnesstrim/core";
+import { reduceAuto, makeTrimEvent, type TrimEvent } from "@harnesstrim/core";
 
 /** Records a reduction as a TrimEvent (or does nothing). */
 export type Sink = (event: TrimEvent) => void;
@@ -36,14 +36,15 @@ export function createFileSink(metricsPath: string): Sink {
 export function runReduceTool(text: string, minLength?: number, sink: Sink = noopSink): CallToolResult {
   const result = reduceAuto(text, minLength);
   if (result.changed) {
-    sink({
-      ts: new Date().toISOString(),
-      harness: "mcp",
-      tool: "reduce",
-      reducer: result.reducer,
-      beforeChars: text.length,
-      afterChars: result.output.length,
-    });
+    sink(
+      makeTrimEvent({
+        harness: "mcp",
+        tool: "reduce",
+        reducer: result.reducer,
+        beforeChars: text.length,
+        afterChars: result.output.length,
+      })
+    );
   }
   return { content: [{ type: "text", text: result.output }] };
 }

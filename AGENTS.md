@@ -16,9 +16,6 @@ making changes.
 The repo uses pnpm, but `pnpm` and `opencode` are NOT always on the session PATH. Use the
 full paths:
 
-```sh
-export PATH="$HOME/.nvm/versions/node/v24.13.0/bin:$HOME/.opencode/bin:$PATH"
-```
 
 - Typecheck: `npm run typecheck`
 - Test: `npm test`
@@ -29,14 +26,6 @@ export PATH="$HOME/.nvm/versions/node/v24.13.0/bin:$HOME/.opencode/bin:$PATH"
 
 ## Git / remotes
 
-- `origin` = https://github.com/giuliastro/HarnessTrim.git (read-only access from this account)
-- `gervaso` = https://github.com/gervaso-assistant/HarnessTrim.git (write access, token via gh keyring)
-- Active gh account: `gervaso-assistant` (git protocol: ssh). Push flow = push to `gervaso`
-  branch, open a PR into `giuliastro/HarnessTrim` via `gh pr create --repo giuliastro/HarnessTrim`.
-- `harnesstrim` lives at `~/.opencode/bin/opencode` (1.18.x) — not on the session PATH.
-- Credentials: gh token lives in the Zorin keyring; it is NOT readable programmatically
-  from a non-graphical shell (collections come back locked). Do not attempt to read it.
-- Only commit/push when the user explicitly asks.
 
 ## Benchmarks / token accounting
 

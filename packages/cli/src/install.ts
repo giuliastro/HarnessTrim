@@ -150,17 +150,28 @@ export interface InstallResult extends OpencodeInstallPlan {
   preset?: Preset;
 }
 
+export interface OpencodeInstallOptions {
+  /** Override the baked-in reduction mode (`active` | `dryrun` | `off`). */
+  mode?: "active" | "dryrun" | "off";
+  /** Override the minimum output length (chars) below which output is left untouched. */
+  minLength?: number;
+  /** Confine reduction to this subset of tool families (e.g. ["bash", "read"]). */
+  tools?: string[];
+}
+
 /**
  * Compute (and optionally apply) the OpenCode install. Dry-run by default. Generates the
  * local wrapper + `.opencode/package.json`, cleans any adapter reference out of
  * opencode.json, and (on --apply) installs the `.opencode` dependency so the wrapper
- * resolves. A preset's adapter config is baked into the wrapper options.
+ * resolves. A preset's adapter config is baked into the wrapper options; explicit
+ * `options` (mode/minLength/tools) override the preset for that surface.
  */
 export function runInstallOpencode(
   dir: string,
   apply: boolean,
   presetName?: string,
   installDeps = true,
+  options: OpencodeInstallOptions = {},
 ): InstallResult {
   let preset: Preset | undefined;
   let adapterConfig = { ...DEFAULT_OPENCODE_ADAPTER_CONFIG };
@@ -169,6 +180,9 @@ export function runInstallOpencode(
     if (!preset) throw new Error(`Unknown preset: ${presetName}`);
     adapterConfig = { ...adapterConfig, ...preset.adapter };
   }
+  if (options.mode !== undefined) adapterConfig.mode = options.mode;
+  if (options.minLength !== undefined) adapterConfig.minLength = options.minLength;
+  if (options.tools !== undefined) adapterConfig.toolFilter = options.tools;
 
   const wrapperPath = path.join(dir, WRAPPER_REL);
   const packageJsonPath = path.join(dir, PKG_REL);

@@ -44,13 +44,23 @@ function applyHookPlan(plan: CodexHookInstallPlan, apply: boolean): boolean {
   return true;
 }
 
+export interface CodexInstallOptions {
+  /** Install skills without the AGENTS.md reduce-pipe instruction (default true). */
+  includeInstructions?: boolean;
+}
+
 /**
  * Compute (and optionally apply) a Codex install: copy the shipped skill pack into
  * `<dir>/.codex/skills` and add the reduce-pipe instruction to AGENTS.md. Dry-run by
  * default; skills already present are skipped and the AGENTS.md snippet is only added
  * once (idempotent via its marker).
  */
-export function runInstallCodex(dir: string, apply: boolean, hook: boolean = false): CodexInstallResult {
+export function runInstallCodex(
+  dir: string,
+  apply: boolean,
+  hook: boolean = false,
+  options: CodexInstallOptions = {}
+): CodexInstallResult {
   const skillsSourceDir = resolveSkillsSourceDir();
   const skillNames = listShippedSkills(skillsSourceDir);
   const skillsDest = path.join(dir, ".codex", "skills");
@@ -69,6 +79,7 @@ export function runInstallCodex(dir: string, apply: boolean, hook: boolean = fal
     skillNames,
     agentsMdContent,
     existingSkillNames: existingSkillNames(skillsDest),
+    includeInstructions: options.includeInstructions,
   });
 
   const hooksPath = path.join(dir, ".codex", "hooks.json");
@@ -78,8 +89,9 @@ export function runInstallCodex(dir: string, apply: boolean, hook: boolean = fal
     : null;
 
   const copied: string[] = [];
+  const hookChanged = hookPlan !== null && hookPlan.action !== "present";
   let applied = false;
-  if (apply) {
+  if (apply && (plan.changed || hookChanged)) {
     for (const skill of plan.skills) {
       if (skill.present) continue;
       fs.cpSync(skill.from, skill.to, { recursive: true });
@@ -90,7 +102,7 @@ export function runInstallCodex(dir: string, apply: boolean, hook: boolean = fal
     } else if (plan.instructionsAction === "append") {
       fs.appendFileSync(plan.instructionsFile, "\n\n" + plan.instructionsSnippet + "\n");
     }
-    if (hookPlan) applyHookPlan(hookPlan, true);
+    if (hookPlan && hookChanged) applyHookPlan(hookPlan, true);
     applied = true;
   }
 

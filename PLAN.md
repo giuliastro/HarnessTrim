@@ -280,6 +280,15 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
 Pi integration uncertainty.
 
 - Ship `--version`/`-v` in the CLI and preserve the bundled-asset resolver for every installer.
+- **DONE — 2026-08-01** Install-precision and machine-readable surfaces (`docs/token-harness-onboarding.md`):
+  per-harness narrowing (`--no-hook`/`--no-instructions` for Claude/Codex skills-only installs;
+  OpenCode `--mode`/`--min-length`/`--tools` baked into the generated wrapper); `--json` output for
+  `doctor`/`install`/`metrics`; a `capabilities` command exposing each harness's adapter surface,
+  narrowing flags, and exact write-set; a dry-run-first `uninstall <harness>` that only removes what
+  HarnessTrim wrote (marker-guarded instruction regions, copied skills + now-empty parent dir, added
+  hook entries, OpenCode wrapper + dependency); and telemetry hardening (`schemaVersion` + stable
+  `eventId` on every TrimEvent, legacy JSONL lines normalized, emitters updated in the OpenCode/MCP
+  hooks and Hermes plugin). 169 tests, typecheck clean.
 - Validate Pi's structured `tool_result.content` against a live Pi session in both `dryrun` and
   `active` modes. Confirm that text chunks shrink, non-text chunks are unchanged, failed reductions
   pass through, and the marker prevents a second reduction.
@@ -329,6 +338,31 @@ multi-tool Tier B evidence are all repeatable.
 
 ## 10. Status log
 
+
+- **2026-08-01** — **Install-precision, machine-readable output, safe uninstall, telemetry hardening
+  (v0.0.6, per `docs/token-harness-onboarding.md`).** Implemented on `feat/generic-reducers-hermes`
+  (rebased onto origin/main):
+  - **Narrowed installs:** `install claude --no-hook` / `--no-instructions` and `install codex
+    --no-instructions` do skills-only installs (planners honor `includeHook`/`includeInstructions`;
+    nothing else is touched). `install opencode --mode active|dryrun|off`, `--min-length <n>`, and
+    `--tools <name,...>` bake their overrides into the generated wrapper config.
+  - **Machine-readable output:** `doctor`, `install <harness>`, and `metrics` accept `--json`
+    (`packages/cli/src/json.ts`). `capabilities` prints a JSON table of what this build supports per
+    harness: adapter surface, available narrowing flags, and the exact write-set each installer owns.
+  - **`uninstall <harness>`** (`packages/cli/src/uninstall.ts`): dry-run until `--apply`; only removes
+    what HarnessTrim wrote — marker-guarded instruction regions, the copied skill dirs (and a now-empty
+    parent skills dir), the hook entries it added, and the OpenCode wrapper + package.json dependency.
+    Parent-dir and package.json handling were fixed during the test pass (3 failures → 0).
+  - **Telemetry hardening:** every TrimEvent now carries `schemaVersion: 1` and a stable `eventId`
+    (randomUUID), with `beforeTokens`/`afterTokens` nullable; `makeTrimEvent()` is the single emitter
+    in the OpenCode plugin, MCP server, and CLI hook/reduce paths; the Hermes Python plugin writes the
+    same shape; `parseTrimEvents` normalizes legacy schemaVersion-0 lines. `TrimEvent` schema remains
+    backward-compatible for `metrics` summaries.
+  - 169 tests green (core 66, cli 45, adapter-claude 19, adapter-codex 16, adapter-opencode 9,
+    adapter-hermes/pi 5 each, mcp 4), typecheck clean on all packages. Smoke-tested live: `--json`
+    install/uninstall/doctor/metrics, `--no-hook` install, and `uninstall --apply` from a scratch dir.
+  - Next: package + publish v0.0.6 (lint-output-slim reducer + these changes are queued in PR); then
+    the §9 v0.1.0 release CI and v0.2.0 Tier B matrix.
 
 - **RESUME HERE (next session).** Repo is green: CI passes on Linux/Windows/macOS, 119 tests,
   typecheck clean, bench fidelity OK. **`harnesstrim` is LIVE on npm and verified working end-to-end**

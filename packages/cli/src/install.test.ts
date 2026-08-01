@@ -136,3 +136,24 @@ test("runInstallOpencode throws on an unknown preset", () => {
   const dir = tmpProject();
   assert.throws(() => runInstallOpencode(dir, false, "nope"), /Unknown preset/);
 });
+
+test("runInstallOpencode overrides mode/min-length/tools via options", () => {
+  const dir = tmpProject();
+  const result = runInstallOpencode(dir, true, undefined, false, {
+    mode: "dryrun",
+    minLength: 500,
+    tools: ["bash", "read"],
+  });
+  const wrapper = fs.readFileSync(result.wrapperPath, "utf8");
+  assert.match(wrapper, /"mode": "dryrun"/);
+  assert.match(wrapper, /"minLength": 500/);
+  assert.match(wrapper, /"toolFilter": \[/);
+  assert.match(wrapper, /"bash"/);
+});
+
+test("runInstallOpencode options override a preset's adapter config", () => {
+  const dir = tmpProject();
+  const result = runInstallOpencode(dir, true, "lean-debug", false, { mode: "off" });
+  const wrapper = fs.readFileSync(result.wrapperPath, "utf8");
+  assert.match(wrapper, /"mode": "off"/);
+});

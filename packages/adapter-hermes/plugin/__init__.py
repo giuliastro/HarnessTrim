@@ -225,14 +225,19 @@ def _write_metric(tool: str, reducer: str | None, before: int, after: int) -> No
     directory lazily and swallows any error — telemetry must never crash the plugin.
     """
     import datetime as _dt
+    import uuid as _uuid
 
     event = {
+        "schemaVersion": 1,
+        "eventId": str(_uuid.uuid4()),
         "ts": _dt.datetime.now(_dt.timezone.utc).isoformat(),
         "harness": "hermes",
         "tool": tool,
         "reducer": reducer,
         "beforeChars": before,
         "afterChars": after,
+        "beforeTokens": None,
+        "afterTokens": None,
     }
     try:
         METRICS_PATH.parent.mkdir(parents=True, exist_ok=True)

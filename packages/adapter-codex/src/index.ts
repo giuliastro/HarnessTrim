@@ -49,6 +49,8 @@ export interface CodexInstallPlan {
   instructionsFile: string;
   instructionsAction: InstructionsAction;
   instructionsSnippet: string;
+  /** Whether any write would change state (false when the desired state is already present). */
+  changed: boolean;
 }
 
 export interface CodexInstallInput {
@@ -61,6 +63,8 @@ export interface CodexInstallInput {
   agentsMdContent: string | null;
   /** Skill names already present at the destination. */
   existingSkillNames: string[];
+  /** Install skills without the AGENTS.md reduce-pipe instruction (skills-only). Default true. */
+  includeInstructions?: boolean;
 }
 
 interface HookEntry {
@@ -182,6 +186,7 @@ export function planCodexHookInstall(input: CodexHookInstallInput): CodexHookIns
  * the AGENTS.md snippet is added only if its marker is not already there (idempotent).
  */
 export function planCodexInstall(input: CodexInstallInput): CodexInstallPlan {
+  const includeInstructions = input.includeInstructions ?? true;
   const skillsDest = path.join(input.projectDir, ".codex", "skills");
   const existing = new Set(input.existingSkillNames);
   const skills: SkillCopy[] = input.skillNames.map((name) => ({
@@ -192,7 +197,9 @@ export function planCodexInstall(input: CodexInstallInput): CodexInstallPlan {
   }));
 
   let instructionsAction: InstructionsAction;
-  if (input.agentsMdContent === null) {
+  if (!includeInstructions) {
+    instructionsAction = "present";
+  } else if (input.agentsMdContent === null) {
     instructionsAction = "create";
   } else if (input.agentsMdContent.includes(HARNESSTRIM_MARKER)) {
     instructionsAction = "present";
@@ -206,5 +213,6 @@ export function planCodexInstall(input: CodexInstallInput): CodexInstallPlan {
     instructionsFile: path.join(input.projectDir, "AGENTS.md"),
     instructionsAction,
     instructionsSnippet: REDUCE_INSTRUCTION_SNIPPET,
+    changed: skills.some((s) => !s.present) || instructionsAction !== "present",
   };
 }
