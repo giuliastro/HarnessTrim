@@ -23,13 +23,20 @@ OPENCODE="${OPENCODE:-opencode}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # TASK selects which fixture project to run (default: the original small task).
 # e.g. TASK=task-large-suite MODEL=opencode/deepseek-v4-flash-free ./run-e2e.sh
+# A task dir must contain a `.opencode/plugin/` loader that activates the trimmed
+# run (see task-failing-test/ and task-multi-step/).
 TASK="${TASK:-task-failing-test}"
 TASK_DIR="$SCRIPT_DIR/$TASK"
 OUT_DIR="$SCRIPT_DIR/reports/$TASK"
 mkdir -p "$OUT_DIR"
 
-PROMPT='Run the test suite with `npm test`, then reply with ONLY the name of the failing test (nothing else).'
-EXPECTED='handles concurrent writes without deadlock'
+# PROMPT / EXPECTED can be overridden per task (see the task dir's package.json).
+if [ -z "${PROMPT+x}" ]; then
+  PROMPT='Run the test suite with `npm test`, then reply with ONLY the name of the failing test (nothing else).'
+fi
+if [ -z "${EXPECTED+x}" ]; then
+  EXPECTED='handles concurrent writes without deadlock'
+fi
 
 run_condition() {
   local label="$1"; shift
@@ -50,9 +57,13 @@ run_condition() {
   echo "$label|$ok|$billed"
 }
 
-echo "Task: $PROMPT"
+echo "Task: $TASK"
+echo "Prompt: $PROMPT"
 echo "Expected failing test: $EXPECTED"
 echo
+# Clear telemetry before the trimmed run so per-run metrics aren't contaminated by
+# earlier runs in the same task dir (vanilla runs with --pure emit none).
+rm -f "$TASK_DIR/harnesstrim-metrics.jsonl"
 V="$(run_condition vanilla --pure | tail -1)"
 T="$(run_condition trimmed | tail -1)"
 
