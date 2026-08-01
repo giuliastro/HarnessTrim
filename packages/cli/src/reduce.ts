@@ -1,7 +1,14 @@
 import { reduceAuto, type AutoReduceResult } from "@harnesstrim/core";
 
-/** Read all of stdin as a UTF-8 string. */
+/**
+ * Read all of stdin as a UTF-8 string.
+ *
+ * When stdin is a TTY (interactive terminal) there is no EOF, so waiting for one would
+ * hang forever; return an empty string instead. Piped input (`echo x | harnesstrim reduce`)
+ * is read to EOF as usual.
+ */
 export async function readStdin(): Promise<string> {
+  if (process.stdin.isTTY) return "";
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) {
     chunks.push(chunk as Buffer);

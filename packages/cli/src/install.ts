@@ -211,6 +211,8 @@ export function runInstallOpencode(
       const res = spawnSync(npm, ["install", "--silent"], {
         cwd: path.dirname(packageJsonPath),
         encoding: "utf8",
+        input: "",
+        timeout: 120_000,
       });
       if (res.error || res.status !== 0) {
         depsInstalled = false;

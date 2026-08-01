@@ -6,6 +6,7 @@ import {
   genericTextSlim,
   gitDiffSlim,
   jsonOutputSlim,
+  lintOutputSlim,
   testOutputSlim,
   type Reducer,
 } from "@harnesstrim/core";
@@ -74,6 +75,17 @@ const FIXTURES: Fixture[] = [
     file: "generic-text/daily-briefing.md",
     reducer: genericTextSlim,
     mustKeep: ["# Daily engineering briefing", "## Actions", "Verify the plugin schema handling."],
+  },
+  {
+    file: "lint/eslint-wall.txt",
+    reducer: lintOutputSlim,
+    mustKeep: [
+      "✖ 90 warnings", // the totals
+      "0 errors",
+      "20 files checked, 10 had style suggestions",
+      "no-console ×10", // which rules fired, aggregated
+      "Run eslint --fix to apply automatic fixes.", // the actionable next step
+    ],
   },
 ];
 
