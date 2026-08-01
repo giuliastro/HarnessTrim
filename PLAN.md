@@ -268,6 +268,9 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
   `.claude/skills` and `.agents/skills`).
 - Real tokenizer choice for Tier A micro-benchmarks (tiktoken vs. Anthropic's tokenizer) — pick per
   target harness's model family, may need both.
+- Lint-warning walls (`file:line:col warning ...` repeated) match no current reducer — a potential
+  `lint-output-slim` reducer (observed 2026-08-01 in the Tier B `task-multi-step` fixture: an 8270-char
+  eslint wall passed through unreduced in both conditions).
 
 ## 9. Next-version development plan
 
@@ -742,7 +745,29 @@ multi-tool Tier B evidence are all repeatable.
   small tool output — savings scale with noisy-output volume vs fixed overhead. Single anecdotal run;
   `run-e2e.sh` + `sum-session-tokens.mjs` are the reproducible harness for larger/multi-run studies.
   Remaining: **Pi adapter**; broader multi-tool-call Tier B runs.
-- **2026-07-13** — **Pi adapter shipped** (`packages/adapter-pi`) — the fifth and last target harness.
+- **2026-08-01** — **Tier B multi-tool-call runs executed** (the "broader runs" item from the
+  previous status). New fixture `benchmarks/tierB/task-multi-step/`: three noisy tool calls per run
+  (`npm test` 1649 chars, `npm run lint` 8270 chars, `npm run deps` 6030 chars JSON); `run-e2e.sh`
+  parameterized via `TASK`/`PROMPT`/`EXPECTED` (default stays the original single-tool task).
+  - **Accounting lesson (learned the hard way):** an earlier local analysis double-counted tokens
+    (summed the session-level `info.tokens` *and* each `messages[i].info.tokens`, when the former is
+    just the aggregate), inflating every number ~2× and making billed deltas look like noise dominated
+    by cache re-reads. origin/main's `sum-session-tokens.mjs` counts `messages[i].info.tokens` exactly
+    once (dedup fix, 2026-07-17) — that is the correct semantics. **Verify token-accounting
+    assumptions whenever OpenCode bumps its export format** (shape changed 1.17→1.18: `input` fresh-only
+    vs. cache-inclusive).
+  - **Live results (5 runs each condition, corrected accounting, model
+    `opencode/deepseek-v4-flash-free`, all 10 runs succeeded → quality retained):** trimmed won 4/5 on
+    billed (non-cache fresh input + output + reasoning): −10.0%, −30.6%, −2.9%, −8.7%; lost one run
+    at +17.6% where the model simply took more steps in the trimmed condition. Deterministic per-call
+    shrink measured without a model: `npm test` 1649→814 (~51%), `npm run deps` 6030→575 (~90%).
+  - **Honest caveat sharpened by multi-run data:** billed tokens are dominated by how many steps the
+    model happens to take (each step = one fresh-input record), so single-run billed deltas are noisy;
+    the deterministic per-call reduction (Tier A) is the ground truth, and session-level % is a blend.
+  - The `npm run lint` wall (8270 chars) matches no current reducer in either condition — neutral for
+    the comparison, but flagged as a missed `lint-output-slim` opportunity (PLAN §8).
+  - Remaining: live Pi hardening (still no Pi CLI in env); native-telemetry normalization for
+    vanilla-vs-trimmed comparison; Tier B runs on larger real-world tasks.
   API confirmed from Pi's extension docs (not guessed): extensions are `export default (pi:
   ExtensionAPI) => pi.on(event, handler)` loaded from `~/.pi/agent/extensions/` or
   `<project>/.pi/extensions/`, and the **`tool_result`** event fires after a tool finishes and lets

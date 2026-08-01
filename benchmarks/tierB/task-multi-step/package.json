@@ -1,0 +1,11 @@
+{
+  "name": "tierb-task-multi-step",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Tier B fixture task: multi-tool-call, run three noisy steps, report the failing test.",
+  "scripts": {
+    "test": "node noisy-tests.mjs",
+    "lint": "node noisy-lint.mjs",
+    "deps": "node noisy-deps.mjs"
+  }
+}

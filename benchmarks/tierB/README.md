@@ -13,10 +13,12 @@ the task is worthless.
 
 - **Tasks**: each is a project whose `npm test` prints noisy, mostly-passing output with one failure.
   The agent runs the suite and replies with only the failing test name; success = the answer contains
-  `handles concurrent writes without deadlock`. Two sizes, to show how the blended win scales with the
-  amount of noisy output:
-  - `task-failing-test/` — **small** output (~1.3 KB, 41 lines).
+  `handles concurrent writes without deadlock`. Three sizes, to show how the blended win scales with
+  the amount of noisy output:
+  - `task-failing-test/` — **small** output (~1.3 KB, 41 lines), one tool call.
   - `task-large-suite/` — **large** output (~9.1 KB, 274 lines): 20 suites × 12 cases.
+  - `task-multi-step/` — **three noisy tool calls** (`npm test`, `npm run lint`, `npm run deps`):
+    the multi-tool-call case where the model works through several tools in one session.
 - **Controlled toggle**: the two runs are identical except for HarnessTrim.
   - *vanilla* — `opencode run --pure` (disables external plugins, so no reduction).
   - *trimmed* — `opencode run` with the adapter active (auto-loaded from the task's
@@ -34,12 +36,20 @@ less than reliable tool-calling). Pass its OpenCode model id via `MODEL`, and pi
 `TASK` (default `task-failing-test`):
 
 ```sh
-MODEL=opencode/deepseek-v4-flash-free ./run-e2e.sh                     # small task
-TASK=task-large-suite MODEL=opencode/deepseek-v4-flash-free ./run-e2e.sh  # large task
+MODEL=opencode/deepseek-v4-flash-free ./run-e2e.sh                          # small task
+TASK=task-large-suite MODEL=opencode/deepseek-v4-flash-free ./run-e2e.sh    # large task
+TASK=task-multi-step MODEL=opencode/deepseek-v4-flash-free ./run-e2e.sh     # multi-tool-call
+```
+
+`PROMPT` and `EXPECTED` can be overridden per task, e.g. to ask the agent to run several tools:
+
+```sh
+TASK=task-multi-step PROMPT='Run the test suite, the linter, and the dependency audit, then reply with ONLY the failing test name.' EXPECTED='handles concurrent writes without deadlock' MODEL=... ./run-e2e.sh
 ```
 
 Outputs a vanilla-vs-trimmed comparison and writes raw logs to `reports/<task>/`. Token counts are
-model-dependent and each condition runs once per invocation, so treat few runs as anecdotal.
+model-dependent and each condition runs once per invocation, so treat few runs as anecdotal; run it
+several times if you want a spread.
 
 ## What's verified
 
@@ -48,10 +58,15 @@ model-dependent and each condition runs once per invocation, so treat few runs a
   (~58%)** preserving every signal line (failing test name, `Received: "deadlock detected"`, the
   `1 failed, 23 passed` summary). The large fixture emits ~9.1 KB / 274 lines and reduces
   **9147 → 504 chars (~94%)**, signal preserved.
+- The multi-step fixture's per-call reduction, measured via `harnesstrim reduce`: `npm test`
+  1649 → 814 chars (~51%, test-output-slim), `npm run deps` 6030 → 575 chars (~90%, json-output-slim).
+  `npm run lint` (8.3 KB of lint-warning walls) matches **no** current reducer, so it is never
+  reduced in either condition.
 - `parse-usage.mjs` / `sum-session-tokens.mjs` extract tokens + answer correctly.
 
-**End-to-end (with a model):** see the 2026-07-17 measured results above — 2 tasks × 2 runs, quality
-retained in all 8, blended savings ~2% (tiny task) to ~22–25% (large-output task), cache preserved.
+**End-to-end (with a model):** see the measured results below — quality retained in every run, blended
+savings ~2% (tiny task) to ~22–25% (large-output task), and a noisy-but-mostly-positive signal on the
+multi-tool-call task.
 
 ## Measured multi-task results (2026-07-17)
 
@@ -77,7 +92,39 @@ Reading it honestly:
 - **Cache read is identical** across each vanilla/trimmed pair: the reducer never touched the
   cacheable prefix, so it did not bust the prompt cache (cache-preservation KPI, validated live).
 - Still model-dependent and few-run, not a statistical study — but now measured across output sizes,
-  not a single anecdote. Larger fleets / multi-tool-call tasks remain future work.
+  not a single anecdote.
+
+## Measured multi-tool-call results (2026-08-01)
+
+`task-multi-step`, **five runs each condition**, model `opencode/deepseek-v4-flash-free`, corrected
+token accounting. **All 10 runs succeeded** — the failing test was named every time. The fixture
+emits three noisy tool calls: `npm test` (1649 chars), `npm run lint` (8327 chars, no reducer
+matches), and `npm run deps` (6030 chars of JSON).
+
+| Run | Vanilla billed | Trimmed billed | Δ % | cacheRead vanilla | cacheRead trimmed |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 17,188 | 20,206 | **+17.6%** | 46,208 | 46,976 |
+| 2 | 22,198 | 19,974 | −10.0% | 45,952 | 46,208 |
+| 3 | 28,491 | 19,771 | **−30.6%** | 52,608 | 45,824 |
+| 4 | 17,718 | 17,200 | −2.9% | 46,720 | 45,696 |
+| 5 | 22,108 | 20,179 | −8.7% | 45,952 | 46,976 |
+
+Reading it honestly:
+- **Billed tokens (non-cache: fresh input + output + reasoning) are dominated by the number of
+  steps the model happens to choose.** Each step's message carries its own fresh-input record, so a
+  5-step run costs far more than a 3-step run regardless of reduction. Across these five pairs the
+  trimmed run won 4/5 (−2.9% to −30.6%) and lost one (+17.6%) — the losing run is where the model
+  took more steps in the trimmed condition, not a sign the reducer hurt quality (success was 5/5).
+- **Quality never dropped** in any of the ten runs, including the runs where the trimmed side spent
+  more tokens: the failing test was named correctly every time.
+- **Cache read tracks step count**, not the reducer. Where step counts differ the numbers differ;
+  where they match (runs 2 and 4) they're within one step's worth of noise. Cache preservation was
+  already validated deterministically in the single-tool task.
+- The lint wall (8.3 KB) matches no reducer, so a `lint-output-slim` reducer is a clear open win
+  (see PLAN); its 8.3 KB is 41% of the fixture's total noisy output.
+- Net: on a task with *three* noisy calls the signal is mostly positive but noisier than the
+  single-tool tasks — step-count variance (not the reducer) dominates the session total. The
+  deterministic per-call win remains the ground truth (Tier A); session-level % is a blend.
 
 ## Live result (2026-07-13)
 
@@ -105,6 +152,3 @@ Reading it honestly:
   worst case for the ratio, not the best.
 - **Cache read is identical** in both runs: the reducer left the cacheable prefix untouched, so it
   did not bust the prompt cache (validating the cache-preservation KPI live).
-
-This is a single anecdotal run on a tiny task, not a statistical claim. A fuller picture needs
-larger, multi-tool-call tasks and several runs; `run-e2e.sh` is the harness to produce them.
