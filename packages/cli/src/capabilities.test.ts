@@ -63,8 +63,8 @@ test("opencodeInstallJson reports the plan as actions with paths", () => {
   assert.equal(plan.harness, "opencode");
   assert.equal(plan.dryRun, true);
   assert.equal(plan.changed, true);
-  assert.ok(plan.actions.some((a) => a.type === "write" && a.path.endsWith(".opencode/plugin/harnesstrim.ts")));
-  assert.ok(plan.actions.some((a) => a.path.endsWith(".opencode/package.json")));
+  assert.ok(plan.actions.some((a) => a.type === "write" && a.path.endsWith(path.join(".opencode", "plugin", "harnesstrim.ts"))));
+  assert.ok(plan.actions.some((a) => a.path.endsWith(path.join(".opencode", "package.json"))));
 });
 
 test("claudeInstallJson reflects a skills-only plan (no hook action)", () => {
