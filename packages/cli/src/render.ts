@@ -117,11 +117,13 @@ export function renderCodexInstall(result: CodexInstallResult, apply: boolean): 
   lines.push("");
 
   const instr =
-    plan.instructionsAction === "present"
-      ? "AGENTS.md already contains the HarnessTrim instruction (no change)."
-      : plan.instructionsAction === "create"
-        ? `AGENTS.md ${apply ? "created" : "would be created"} with the reduce-pipe instruction.`
-        : `Reduce-pipe instruction ${apply ? "appended" : "would be appended"} to AGENTS.md.`;
+    plan.instructionsAction === "skip"
+      ? "AGENTS.md instruction skipped (--no-instructions); skills only."
+      : plan.instructionsAction === "present"
+        ? "AGENTS.md already contains the HarnessTrim instruction (no change)."
+        : plan.instructionsAction === "create"
+          ? `AGENTS.md ${apply ? "created" : "would be created"} with the reduce-pipe instruction.`
+          : `Reduce-pipe instruction ${apply ? "appended" : "would be appended"} to AGENTS.md.`;
   lines.push(instr);
 
   if (result.hookPlan) {
@@ -176,7 +178,9 @@ export function renderClaudeInstall(result: ClaudeInstallResult, apply: boolean)
   }
   lines.push("");
 
-  if (plan.settingsAction === "present") {
+  if (plan.settingsAction === "skip") {
+    lines.push(`${plan.settingsFile}: PostToolUse hook skipped (--no-hook); skills only.`);
+  } else if (plan.settingsAction === "present") {
     lines.push(`${plan.settingsFile}: PostToolUse reducer hook already present (no change).`);
   } else {
     lines.push(
@@ -189,7 +193,9 @@ export function renderClaudeInstall(result: ClaudeInstallResult, apply: boolean)
     }
   }
   lines.push("");
-  if (plan.instructionsAction === "present") {
+  if (plan.instructionsAction === "skip") {
+    lines.push(`${plan.instructionsFile}: reduce-pipe instruction skipped (--no-instructions); skills only.`);
+  } else if (plan.instructionsAction === "present") {
     lines.push(`${plan.instructionsFile}: reduce-pipe instruction already present (no change).`);
   } else {
     lines.push(
@@ -249,7 +255,7 @@ export function renderPiInstall(result: PiInstallResult, apply: boolean): string
       lines.push(`  Copied: ${result.copiedFiles.join(", ")}`);
     } else {
       lines.push(`  Source: ${plan.extensionSource}`);
-      lines.push("  (harnesstrim.ts + .installed marker)");
+      lines.push("  (index.ts + .installed marker)");
     }
     lines.push("");
     lines.push("The extension hooks Pi's `tool_result` and needs `harnesstrim` on PATH.");

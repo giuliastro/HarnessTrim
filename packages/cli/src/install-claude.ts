@@ -61,7 +61,7 @@ export function runInstallClaude(dir: string, apply: boolean, options: ClaudeIns
       fs.cpSync(skill.from, skill.to, { recursive: true });
       copied.push(skill.name);
     }
-    if (plan.settingsAction !== "present") {
+    if (plan.settingsAction !== "present" && plan.settingsAction !== "skip") {
       fs.mkdirSync(path.dirname(plan.settingsFile), { recursive: true });
       fs.writeFileSync(plan.settingsFile, JSON.stringify(plan.nextSettings, null, 2) + "\n");
     }

@@ -49,11 +49,19 @@ export function runInstallPi(installDir: string, apply: boolean): PiInstallResul
   let applied = false;
   if (apply) {
     fs.mkdirSync(dest, { recursive: true });
-    for (const entry of fs.readdirSync(extensionSourceDir, { withFileTypes: true })) {
-      if (!entry.isDirectory()) {
-        fs.copyFileSync(path.join(extensionSourceDir, entry.name), path.join(dest, entry.name));
-        copiedFiles.push(entry.name);
+    const sourceFiles = fs.readdirSync(extensionSourceDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name);
+    // Prune stale bundle files (e.g. a previous `harnesstrim.ts` entry) so the
+    // installed dir always mirrors the shipped bundle. Never touch `.installed`.
+    for (const existing of fs.readdirSync(dest)) {
+      if (existing !== ".installed" && !sourceFiles.includes(existing)) {
+        fs.rmSync(path.join(dest, existing), { recursive: true, force: true });
       }
+    }
+    for (const entry of sourceFiles) {
+      fs.copyFileSync(path.join(extensionSourceDir, entry), path.join(dest, entry));
+      copiedFiles.push(entry);
     }
     fs.writeFileSync(path.join(dest, ".installed"), markerFileContent());
     copiedFiles.push(".installed");

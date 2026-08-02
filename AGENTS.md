@@ -38,10 +38,12 @@ full paths:
 
 ## Published state (as of last work)
 
-- `harnesstrim` published: latest 0.0.5. 0.0.6 (lint-output-slim reducer, install/readStdin
-  hang fixes, clean-package smoke test) is in PR.
+- `harnesstrim` published: latest 0.0.6 (2026-08-01). 0.0.7 in flight (uncommitted on
+  `feat/install-precision-json-uninstall`): Pi discovery fix (`index.ts`), install-precision
+  narrowing, `--json`/`capabilities`, `uninstall`, TrimEvent schema, extended smoke test.
 - CLI features already present: `doctor`, `install opencode|codex|claude|hermes|pi`,
-  `hook claude`, `reduce`, `mcp`, `bench`, `preset list/show`, `metrics`, `--version`.
+  `hook claude`, `reduce`, `mcp`, `bench`, `preset list/show`, `metrics`, `--version`,
+  `capabilities`, `uninstall`, `--json` on doctor/install/metrics.
 - All five harness adapters exist (opencode/claude/codex/hermes/pi hooks; codex via
   instruction + MCP).
 - CI: `.github/workflows/ci.yml` (typecheck/test/bench on 3 OS + hermes plugin tests).

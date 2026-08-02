@@ -260,14 +260,15 @@ xychart-beta
 Phases 0–4 in progress. Shipped: reducers + benchmark, the 6-skill pack, adapters for **OpenCode**
 (runtime plugin, hardened in a live session), **Codex** (skills + AGENTS.md reduce-pipe, live-validated
 via `codex debug prompt-input`), **Claude Code** (PostToolUse reducer hook), **Hermes Agent**
-(`transform_tool_result` plugin, verified in a live session), and **Pi** (`tool_result` extension),
+(`transform_tool_result` plugin, verified in a live session), and **Pi** (`tool_result` extension,
+verified live on 0.82.1),
 plus an MCP `reduce` server, the `harnesstrim` CLI (doctor / install / uninstall / capabilities / preset / metrics / reduce /
 hook / mcp / bench), telemetry, and policy presets. All five target harnesses now have an adapter.
 The CLI is **published on npm** (`npx harnesstrim`) as a single self-contained bundle.
 End-to-end Tier B runs on OpenCode (two tasks × two runs, quality retained in all 8) measured billed-token
 savings of **~2% on a tiny one-tool-call task and ~22–25% on a large-noisy-output task**, with the prompt
 cache preserved — the blended win scales with noisy-output volume vs fixed overhead. A larger multi-model,
-multi-tool-call study is the remaining Tier B work. 169 tests passing, typecheck clean on all packages.
+multi-tool-call study is the remaining Tier B work. 175 tests passing, typecheck clean on all packages.
 Installers support **narrowing** (skills-only installs via `--no-hook`/`--no-instructions`, OpenCode
 `--mode`/`--min-length`/`--tools` baked into the wrapper), `doctor`/`install`/`metrics` emit **`--json`**,
 `capabilities` reports per-harness surfaces/write-sets as JSON, and `uninstall` reverses an install
@@ -505,7 +506,12 @@ harnesstrim install pi ~ --apply           # global: ~/.pi/... (pass your home d
 
 Copies a TypeScript extension that hooks Pi's `tool_result` and slims noisy output via
 `harnesstrim reduce` (so `harnesstrim` must be on PATH). It starts in `dryrun`; set
-`HARNESSTRIM_MODE=active` in Pi's environment to reduce. Details:
+`HARNESSTRIM_MODE=active` in Pi's environment to reduce. **Verified live on Pi 0.82.1:** the
+extension ships as `harnesstrim/index.ts` because Pi's loader only auto-discovers a subdirectory
+extension via `index.ts` (or a `package.json` with a `pi.extensions` field); dryrun logs
+`[harnesstrim] dryrun ...` to stderr, active mode replaces text chunks (a 13902-char JSON array
+reached the model as 6 lines), output passes through when `harnesstrim` is missing, and already-reduced
+output is never reduced twice. Details:
 [`packages/adapter-pi`](packages/adapter-pi/README.md).
 
 ### Any MCP-capable harness

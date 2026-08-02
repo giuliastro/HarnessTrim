@@ -86,7 +86,7 @@ export function codexInstallJson(result: CodexInstallResult, apply: boolean): Js
     from: s.from,
     note: s.present ? "already present" : "copy skill",
   }));
-  if (result.plan.instructionsAction !== "present") {
+  if (result.plan.instructionsAction !== "present" && result.plan.instructionsAction !== "skip") {
     actions.push({
       type: result.plan.instructionsAction === "create" ? "write" : "append",
       path: result.plan.instructionsFile,
@@ -119,14 +119,14 @@ export function claudeInstallJson(result: ClaudeInstallResult, apply: boolean): 
     from: s.from,
     note: s.present ? "already present" : "copy skill",
   }));
-  if (result.plan.settingsAction !== "present") {
+  if (result.plan.settingsAction !== "present" && result.plan.settingsAction !== "skip") {
     actions.push({
       type: result.plan.settingsAction === "create" ? "write" : "write",
       path: result.plan.settingsFile,
       note: `PostToolUse Bash hook (${result.plan.settingsAction})`,
     });
   }
-  if (result.plan.instructionsAction !== "present") {
+  if (result.plan.instructionsAction !== "present" && result.plan.instructionsAction !== "skip") {
     actions.push({
       type: result.plan.instructionsAction === "create" ? "write" : "append",
       path: result.plan.instructionsFile,

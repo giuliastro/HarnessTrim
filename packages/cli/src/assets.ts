@@ -34,7 +34,7 @@ export function resolveHermesPluginSourceDir(): string {
   return resolveAssetDir(path.join("adapter-hermes", "plugin"), path.join("packages", "adapter-hermes", "plugin"));
 }
 
-/** The shipped Pi extension bundle (harnesstrim.ts). */
+/** The shipped Pi extension bundle (index.ts, the entry Pi 0.82.1 auto-discovers). */
 export function resolvePiExtensionSourceDir(): string {
   return resolveAssetDir(path.join("adapter-pi", "extension"), path.join("packages", "adapter-pi", "extension"));
 }

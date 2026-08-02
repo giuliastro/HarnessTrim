@@ -53,9 +53,18 @@ D="$PROJ/app"
 mkdir -p "$D"
 "$BIN" doctor "$D" >/dev/null 2>&1 || fail "doctor exited non-zero"
 
-# 5. reduce from stdin works and slims lint/test walls.
-REDUCED="$(printf 'a.js:1:2  warning  no-console - msg\nb.js:3:4  error  eqeqeq - msg\n\n✖ 1 warnings\n  1 errors\n' | "$BIN" reduce --metrics "$PROJ/m.jsonl" 2>/dev/null)" || fail "reduce exited non-zero"
+# 5. reduce from stdin works and slims lint/test walls. The lint wall must be
+#    longer than the 400-char default min-length or lint-output-slim is skipped.
+LINT_WALL="$(for i in $(seq 1 30); do printf "src/file%02d.js:%d:%d  warning  no-console - unused variable msg\n" "$i" "$((i+1))" "$((i*2))"; done)"
+LINT_WALL="$LINT_WALL
+✖ 30 warnings
+  0 errors"
+REDUCED="$(printf '%s\n' "$LINT_WALL" | "$BIN" reduce --metrics "$PROJ/m.jsonl" 2>/dev/null)" || fail "reduce exited non-zero"
 echo "$REDUCED" | grep -q "harnesstrim:lint-output-slim" || fail "reduce did not run lint-output-slim"
+# --min-length raises the threshold: a reducible input with a huge threshold passes through.
+REDUCED_HIGH="$(printf '%s\n' "$LINT_WALL" | "$BIN" reduce --min-length 999999 2>/dev/null)" || fail "reduce --min-length exited non-zero"
+echo "$REDUCED_HIGH" | grep -q "harnesstrim:lint-output-slim" && fail "reduce --min-length 999999 should not reduce"
+[ "$REDUCED_HIGH" = "$LINT_WALL" ] || fail "reduce --min-length 999999 changed the input"
 
 # 6. Every installer runs dry-run then --apply from a clean dir, using the
 #    shipped assets (skills / hermes plugin / pi extension).
@@ -72,6 +81,43 @@ done
 [ -d "$D/.hermes" ] || fail "hermes plugin not written"
 SKILLS="$("$BIN" preset list 2>/dev/null | head -1)" # sanity: presets resolve
 echo "== smoke: installers applied (opencode/codex/claude/hermes/pi), assets present =="
+
+# 6a. Narrowed installs write only what they promise.
+ND="$PROJ/narrowed"
+mkdir -p "$ND"
+"$BIN" install claude "$ND" --no-hook --apply >/dev/null 2>&1 || fail "install claude --no-hook --apply"
+[ -d "$ND/.claude/skills" ] || fail "--no-hook: skills missing"
+[ ! -f "$ND/.claude/settings.json" ] || fail "--no-hook: settings.json should NOT exist (hook skipped)"
+"$BIN" install codex "$ND" --no-instructions --apply >/dev/null 2>&1 || fail "install codex --no-instructions --apply"
+[ -d "$ND/.codex/skills" ] || fail "--no-instructions: codex skills missing"
+[ ! -f "$ND/AGENTS.md" ] || fail "--no-instructions: AGENTS.md should NOT exist"
+"$BIN" install opencode "$ND" --mode dryrun --min-length 2000 --tools bash,read --apply >/dev/null 2>&1 || fail "install opencode --mode/--min-length/--tools --apply"
+grep -q '"mode": "dryrun"' "$ND/.opencode/plugin/harnesstrim.ts" || fail "opencode wrapper missing mode dryrun"
+grep -q '"minLength": 2000' "$ND/.opencode/plugin/harnesstrim.ts" || fail "opencode wrapper missing minLength 2000"
+grep -q '"toolFilter"' "$ND/.opencode/plugin/harnesstrim.ts" || fail "opencode wrapper missing toolFilter"
+grep -q '"bash"' "$ND/.opencode/plugin/harnesstrim.ts" || fail "opencode wrapper missing bash in toolFilter"
+
+# 6b. capabilities is valid JSON and names all five harnesses.
+CAPS="$(node -e "JSON.parse(require('fs').readFileSync(0,'utf8'))" <<< "$("$BIN" capabilities 2>/dev/null)" && echo ok)" || fail "capabilities did not emit valid JSON"
+[ "$CAPS" = "ok" ] || fail "capabilities invalid JSON"
+for h in opencode codex claude hermes pi; do
+  "$BIN" capabilities 2>/dev/null | grep -q "\"$h\"" || fail "capabilities missing harness $h"
+done
+
+# 6c. --json works for doctor / install / metrics (one JSON object on stdout).
+node -e "JSON.parse(require('fs').readFileSync(0,'utf8'))" <<< "$("$BIN" doctor "$D" --json 2>/dev/null)" || fail "doctor --json invalid"
+node -e "JSON.parse(require('fs').readFileSync(0,'utf8'))" <<< "$("$BIN" install opencode "$ND" --json 2>/dev/null)" || fail "install --json invalid"
+
+# 6d. uninstall dry-runs, then --apply removes what install wrote.
+"$BIN" uninstall pi "$D" >/dev/null 2>&1 || fail "uninstall pi (dry-run)"
+[ -d "$D/.pi/extensions/harnesstrim" ] || fail "uninstall dry-run removed files without --apply"
+"$BIN" uninstall pi "$D" --apply >/dev/null 2>&1 || fail "uninstall pi --apply"
+[ -d "$D/.pi/extensions/harnesstrim" ] && fail "uninstall pi --apply left the extension dir"
+"$BIN" uninstall opencode "$D" --apply >/dev/null 2>&1 || fail "uninstall opencode --apply"
+[ -d "$D/.opencode/plugin" ] && fail "uninstall opencode --apply left the wrapper"
+"$BIN" uninstall claude "$D" --apply >/dev/null 2>&1 || fail "uninstall claude --apply"
+[ -d "$D/.claude/skills" ] && fail "uninstall claude --apply left skills"
+echo "== smoke: capabilities + --json + narrowing + uninstall verified =="
 
 # 7. mcp stdio handshake exposes the reduce tool.
 MCP_OUT="$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}\n' | timeout 10 "$BIN" mcp 2>/dev/null)" || fail "mcp initialize"

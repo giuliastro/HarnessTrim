@@ -33,7 +33,7 @@ generated-file (lockfile/dist) diffs. Prefer the installed skills for output, re
 scaffolding discipline.
 <!-- harnesstrim:end -->`;
 
-export type InstructionsAction = "create" | "append" | "present";
+export type InstructionsAction = "create" | "append" | "present" | "skip";
 
 export interface SkillCopy {
   name: string;
@@ -198,7 +198,7 @@ export function planCodexInstall(input: CodexInstallInput): CodexInstallPlan {
 
   let instructionsAction: InstructionsAction;
   if (!includeInstructions) {
-    instructionsAction = "present";
+    instructionsAction = "skip";
   } else if (input.agentsMdContent === null) {
     instructionsAction = "create";
   } else if (input.agentsMdContent.includes(HARNESSTRIM_MARKER)) {
@@ -213,6 +213,6 @@ export function planCodexInstall(input: CodexInstallInput): CodexInstallPlan {
     instructionsFile: path.join(input.projectDir, "AGENTS.md"),
     instructionsAction,
     instructionsSnippet: REDUCE_INSTRUCTION_SNIPPET,
-    changed: skills.some((s) => !s.present) || instructionsAction !== "present",
+    changed: skills.some((s) => !s.present) || (instructionsAction !== "present" && instructionsAction !== "skip"),
   };
 }

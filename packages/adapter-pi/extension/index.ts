@@ -29,6 +29,11 @@ const MODE = env.HARNESSTRIM_MODE ?? "dryrun";
 const MIN_LENGTH = Number(env.HARNESSTRIM_MINLENGTH ?? "400") || 400;
 const MARKER = "[harnesstrim";
 
+/** True when a text chunk should not be reduced: too short, or already reduced. */
+export function shouldSkip(text: string, minLength: number): boolean {
+  return text.length < minLength || text.includes(MARKER);
+}
+
 function reduceViaCli(text: string): string | null {
   try {
     const r = spawnSync("harnesstrim", ["reduce", "--min-length", String(MIN_LENGTH)], {
@@ -54,7 +59,7 @@ export default function harnesstrim(pi: ExtensionAPI): void {
     const content = event.content.map((chunk) => {
       if (chunk.type !== "text" || typeof chunk.text !== "string") return chunk;
       const text = chunk.text;
-      if (text.length < MIN_LENGTH || text.includes(MARKER)) return chunk;
+      if (shouldSkip(text, MIN_LENGTH)) return chunk;
 
       const reduced = reduceViaCli(text);
       if (!reduced || reduced.length >= text.length) return chunk;

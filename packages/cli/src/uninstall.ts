@@ -197,6 +197,15 @@ export function planOpencodeUninstall(dir: string): UninstallPlan {
   // Only remove the wrapper if it is ours (references the adapter package).
   if (wrapper !== null && wrapper.includes(OPENCODE_PLUGIN_NAME)) {
     actions.push({ type: "remove-file", path: wrapperPath, note: "HarnessTrim plugin wrapper" });
+    // If the plugin dir contains nothing but the wrapper we are removing, it was
+    // only ours — take it too.
+    const pluginDir = path.join(dir, ".opencode", "plugin");
+    if (fs.existsSync(pluginDir)) {
+      const entries = fs.readdirSync(pluginDir).filter((name) => name !== "harnesstrim.ts");
+      if (entries.length === 0) {
+        actions.push({ type: "remove-dir", path: pluginDir, note: "empty plugin directory left by HarnessTrim" });
+      }
+    }
   }
 
   const pkgPath = path.join(dir, ".opencode", "package.json");

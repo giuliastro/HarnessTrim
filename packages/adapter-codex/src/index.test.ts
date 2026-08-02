@@ -49,7 +49,7 @@ test("snippet documents the reduce pipe", () => {
 
 test("includeInstructions:false produces a skills-only state", () => {
   const plan = planCodexInstall({ ...base, includeInstructions: false });
-  assert.equal(plan.instructionsAction, "present");
+  assert.equal(plan.instructionsAction, "skip");
 });
 
 test("plan.changed is false when a skills-only install is already in that state", () => {

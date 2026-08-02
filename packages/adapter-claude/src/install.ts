@@ -28,9 +28,9 @@ generated-file (lockfile/dist) diffs, and records what was saved. Prefer the ins
 for output, review, and scaffolding discipline.
 <!-- harnesstrim:end -->`;
 
-export type InstructionsAction = "create" | "append" | "present";
+export type InstructionsAction = "create" | "append" | "present" | "skip";
 
-export type SettingsAction = "create" | "patch" | "present";
+export type SettingsAction = "create" | "patch" | "present" | "skip";
 
 export interface SkillCopy {
   name: string;
@@ -118,15 +118,15 @@ export function planClaudeInstall(input: ClaudeInstallInput): ClaudeInstallPlan 
 
   // Skills-only install: never touch settings (the hook is the only settings write).
   if (!includeHook) {
-    action = "present";
+    action = "skip";
     settings = input.settingsJsonContent === null ? {} : settings;
   }
 
-  const nextSettings = action === "present" ? settings : addHook(settings);
+  const nextSettings = action === "present" || action === "skip" ? settings : addHook(settings);
 
   const instructionsAction: InstructionsAction =
     !includeInstructions
-      ? "present"
+      ? "skip"
       : input.claudeMdContent === null
         ? "create"
         : input.claudeMdContent.includes(HARNESSTRIM_MARKER)
@@ -142,7 +142,7 @@ export function planClaudeInstall(input: ClaudeInstallInput): ClaudeInstallPlan 
     instructionsFile: path.join(input.projectDir, "CLAUDE.md"),
     instructionsAction,
     instructionsSnippet: REDUCE_INSTRUCTION_SNIPPET,
-    changed: skills.some((s) => !s.present) || action !== "present" || instructionsAction !== "present",
+    changed: skills.some((s) => !s.present) || (action !== "present" && action !== "skip") || (instructionsAction !== "present" && instructionsAction !== "skip"),
   };
 }
 

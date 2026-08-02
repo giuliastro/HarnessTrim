@@ -107,6 +107,27 @@ test("opencode uninstall removes package.json when it only declared the adapter"
   assert.equal(fs.existsSync(path.join(dir, ".opencode", "package.json")), false);
 });
 
+test("opencode uninstall removes a plugin dir that only contained our wrapper", () => {
+  const dir = tmpProject();
+  const pluginDir = path.join(dir, ".opencode", "plugin");
+  fs.mkdirSync(pluginDir, { recursive: true });
+  fs.writeFileSync(path.join(pluginDir, "harnesstrim.ts"), "import { HarnessTrim } from \"@harnesstrim/adapter-opencode\";");
+  runUninstall("opencode", dir, true);
+  assert.equal(fs.existsSync(pluginDir), false);
+});
+
+test("opencode uninstall leaves a plugin dir that holds a user file", () => {
+  const dir = tmpProject();
+  const pluginDir = path.join(dir, ".opencode", "plugin");
+  fs.mkdirSync(pluginDir, { recursive: true });
+  fs.writeFileSync(path.join(pluginDir, "harnesstrim.ts"), "import { HarnessTrim } from \"@harnesstrim/adapter-opencode\";");
+  fs.writeFileSync(path.join(pluginDir, "user-plugin.ts"), "export const p = {};");
+  runUninstall("opencode", dir, true);
+  assert.equal(fs.existsSync(path.join(pluginDir, "harnesstrim.ts")), false);
+  assert.equal(fs.existsSync(pluginDir), true);
+  assert.equal(fs.existsSync(path.join(pluginDir, "user-plugin.ts")), true);
+});
+
 test("hermes uninstall removes the plugin dir only when the marker is present", () => {
   const dir = tmpProject();
   const pluginDest = path.join(dir, ".hermes", "plugins", "harnesstrim");
