@@ -13,9 +13,9 @@ making changes.
 
 ## Commands
 
-The repo uses pnpm, but `pnpm` and `opencode` are NOT always on the session PATH. Use the
-full paths:
-
+The repo uses pnpm, but `pnpm` and `opencode` are NOT always on the session PATH. Ensure
+they are on the session PATH (machine-specific toolchain paths live in AGENTS.local.md,
+which is git-ignored — not in this file).
 
 - Typecheck: `npm run typecheck`
 - Test: `npm test`
@@ -24,8 +24,10 @@ full paths:
   `node --experimental-strip-types benchmarks/src/run.ts`
 - CLI build (esbuild bundle + staged assets): `node packages/cli/build.mjs`
 
-## Git / remotes
+## Git
 
+- Only commit/push when the user explicitly asks.
+- Remote/push conventions are machine-specific; see AGENTS.local.md.
 
 ## Benchmarks / token accounting
 
@@ -38,9 +40,9 @@ full paths:
 
 ## Published state (as of last work)
 
-- `harnesstrim` published: latest 0.0.6 (2026-08-01). 0.0.7 in flight (uncommitted on
-  `feat/install-precision-json-uninstall`): Pi discovery fix (`index.ts`), install-precision
-  narrowing, `--json`/`capabilities`, `uninstall`, TrimEvent schema, extended smoke test.
+- `harnesstrim` published: latest 0.0.6 (2026-08-01). 0.0.7 in flight (open PR): Pi
+  discovery fix (`index.ts`), install-precision narrowing, `--json`/`capabilities`,
+  `uninstall`, TrimEvent schema, extended smoke test.
 - CLI features already present: `doctor`, `install opencode|codex|claude|hermes|pi`,
   `hook claude`, `reduce`, `mcp`, `bench`, `preset list/show`, `metrics`, `--version`,
   `capabilities`, `uninstall`, `--json` on doctor/install/metrics.
