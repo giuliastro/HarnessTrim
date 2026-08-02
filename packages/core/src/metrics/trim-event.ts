@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 /**
  * The normalized unit of HarnessTrim telemetry: one reduction the stack performed.
  *
@@ -6,8 +8,19 @@
  * HarnessTrim measures what HarnessTrim did. Values are in characters, matching what the
  * adapters measure at runtime (no tokenizer in the harness process). Parsing native
  * per-harness telemetry for vanilla-vs-trimmed comparison remains future work.
+ *
+ * Stream hardening (2026-08-01): every event carries `schemaVersion` (1) and a stable
+ * `eventId` so readers can version and dedupe the stream without synthesizing an ID.
+ * `beforeTokens`/`afterTokens` are token counts ONLY where the emitting path has them
+ * (`null` otherwise — no tokenizer is bundled into harness processes).
  */
+export const TRIM_EVENT_SCHEMA_VERSION = 1;
+
 export interface TrimEvent {
+  /** Stream schema version. Lines without it (legacy, pre-2026-08-01) parse as 0. */
+  schemaVersion: number;
+  /** Stable, per-event ID emitted by the producer (randomUUID). Empty for legacy lines. */
+  eventId: string;
   /** ISO timestamp, stamped by the emitter. */
   ts: string;
   /** Harness that produced the reduction, e.g. "opencode". */
@@ -18,6 +31,36 @@ export interface TrimEvent {
   reducer: string | null;
   beforeChars: number;
   afterChars: number;
+  /** Token count before reduction, only when the emitting path has one; else null. */
+  beforeTokens: number | null;
+  /** Token count after reduction, only when the emitting path has one; else null. */
+  afterTokens: number | null;
+}
+
+/**
+ * Build a fully-formed, schema-versioned TrimEvent. Producers should use this instead of
+ * hand-rolling the envelope so `schemaVersion`/`eventId` cannot drift between adapters.
+ * Token counts default to null (measured only where the emitting path has a tokenizer).
+ */
+export function makeTrimEvent(
+  partial: Omit<TrimEvent, "schemaVersion" | "eventId" | "ts" | "beforeTokens" | "afterTokens"> & {
+    ts?: string;
+    beforeTokens?: number | null;
+    afterTokens?: number | null;
+  }
+): TrimEvent {
+  return {
+    schemaVersion: TRIM_EVENT_SCHEMA_VERSION,
+    eventId: randomUUID(),
+    ts: partial.ts ?? new Date().toISOString(),
+    harness: partial.harness,
+    tool: partial.tool,
+    reducer: partial.reducer,
+    beforeChars: partial.beforeChars,
+    afterChars: partial.afterChars,
+    beforeTokens: partial.beforeTokens ?? null,
+    afterTokens: partial.afterTokens ?? null,
+  };
 }
 
 export interface ReducerBreakdown {
@@ -82,7 +125,9 @@ export function summarize(events: TrimEvent[]): TrimSummary {
 /**
  * Parse a JSONL telemetry stream into TrimEvents. Blank lines are skipped;
  * malformed lines are ignored (telemetry should never crash a read). Only lines
- * that structurally look like a TrimEvent are kept.
+ * that structurally look like a TrimEvent are kept. Legacy lines (pre-schema,
+ * without `schemaVersion`/`eventId`) are normalized to `schemaVersion: 0` and an
+ * empty `eventId`, so old streams keep reading.
  */
 export function parseTrimEvents(jsonl: string): TrimEvent[] {
   const out: TrimEvent[] = [];
@@ -95,7 +140,7 @@ export function parseTrimEvents(jsonl: string): TrimEvent[] {
     } catch {
       continue;
     }
-    if (isTrimEvent(parsed)) out.push(parsed);
+    if (isTrimEvent(parsed)) out.push(normalize(parsed));
   }
   return out;
 }
@@ -109,4 +154,20 @@ function isTrimEvent(value: unknown): value is TrimEvent {
     typeof v.tool === "string" &&
     (typeof v.reducer === "string" || v.reducer === null)
   );
+}
+
+/** Fill the schema envelope for lines that lack it (legacy streams), pass new lines through. */
+function normalize(v: TrimEvent): TrimEvent {
+  return {
+    schemaVersion: typeof v.schemaVersion === "number" ? v.schemaVersion : 0,
+    eventId: typeof v.eventId === "string" ? v.eventId : "",
+    ts: v.ts,
+    harness: v.harness,
+    tool: v.tool,
+    reducer: v.reducer,
+    beforeChars: v.beforeChars,
+    afterChars: v.afterChars,
+    beforeTokens: typeof v.beforeTokens === "number" ? v.beforeTokens : null,
+    afterTokens: typeof v.afterTokens === "number" ? v.afterTokens : null,
+  };
 }

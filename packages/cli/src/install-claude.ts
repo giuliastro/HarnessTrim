@@ -9,12 +9,19 @@ export interface ClaudeInstallResult {
   copied: string[];
 }
 
+export interface ClaudeInstallOptions {
+  /** Install skills without the PostToolUse hook (default true = hook included). */
+  includeHook?: boolean;
+  /** Install the CLAUDE.md reduce-pipe instruction (default true). */
+  includeInstructions?: boolean;
+}
+
 /**
  * Compute (and optionally apply) a Claude Code install: copy the shipped skill pack into
  * `<dir>/.claude/skills` and add a PostToolUse reducer hook to `.claude/settings.json`.
  * Dry-run by default; skills already present are skipped and the hook is added only once.
  */
-export function runInstallClaude(dir: string, apply: boolean): ClaudeInstallResult {
+export function runInstallClaude(dir: string, apply: boolean, options: ClaudeInstallOptions = {}): ClaudeInstallResult {
   const skillsSourceDir = resolveSkillsSourceDir();
   const skillNames = listShippedSkills(skillsSourceDir);
   const skillsDest = path.join(dir, ".claude", "skills");
@@ -42,17 +49,19 @@ export function runInstallClaude(dir: string, apply: boolean): ClaudeInstallResu
     settingsJsonContent,
     claudeMdContent,
     existingSkillNames: existingSkillNames(skillsDest),
+    includeHook: options.includeHook,
+    includeInstructions: options.includeInstructions,
   });
 
   const copied: string[] = [];
   let applied = false;
-  if (apply) {
+  if (apply && plan.changed) {
     for (const skill of plan.skills) {
       if (skill.present) continue;
       fs.cpSync(skill.from, skill.to, { recursive: true });
       copied.push(skill.name);
     }
-    if (plan.settingsAction !== "present") {
+    if (plan.settingsAction !== "present" && plan.settingsAction !== "skip") {
       fs.mkdirSync(path.dirname(plan.settingsFile), { recursive: true });
       fs.writeFileSync(plan.settingsFile, JSON.stringify(plan.nextSettings, null, 2) + "\n");
     }

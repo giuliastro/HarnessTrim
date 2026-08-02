@@ -3,7 +3,7 @@ import { parseArgs } from "node:util";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { getPreset, listPresets } from "@harnesstrim/core";
+import { getPreset, listPresets, makeTrimEvent } from "@harnesstrim/core";
 import { inspect } from "./doctor.ts";
 import { runInstallOpencode } from "./install.ts";
 import { runInstallCodex, runInstallCodexGlobalHook } from "./install-codex.ts";
@@ -16,6 +16,8 @@ import { loadMetrics, DEFAULT_METRICS_PATH } from "./metrics.ts";
 import pkg from "../package.json" with { type: "json" };
 
 import { readStdin, reducePipe } from "./reduce.ts";
+import { getCapabilities } from "./capabilities.ts";
+import { planUninstall, runUninstall } from "./uninstall.ts";
 import {
   renderDoctor,
   renderInstall,
@@ -27,7 +29,18 @@ import {
   renderMetrics,
   renderPresetList,
   renderPresetShow,
+  renderUninstall,
 } from "./render.ts";
+import {
+  doctorJson,
+  metricsJson,
+  opencodeInstallJson,
+  codexInstallJson,
+  claudeInstallJson,
+  hermesInstallJson,
+  piInstallJson,
+  codexGlobalHookJson,
+} from "./json.ts";
 
 const HELP = `harnesstrim — one token policy for coding harnesses
 
@@ -36,16 +49,25 @@ Usage:
   harnesstrim install opencode [dir]       Wire the adapter into opencode.json (dry-run)
                             --apply         Actually write the change
                             --preset <name> Bake a policy preset's adapter config in
+                            --mode <m>      Override mode: active|dryrun|off
+                            --min-length <n> Override the reduction threshold (chars)
+                            --tools <list>  Confine reduction to a subset of tool families
   harnesstrim install codex [dir]          Install skills + AGENTS.md reduction guidance (dry-run)
                             --apply         Actually write the change
                             --hook          Also install the experimental Bash PostToolUse hook
+                            --no-instructions  Skills only (no AGENTS.md reduce-pipe instruction)
                             --global        With --hook, install it once in ~/.codex (no project files)
   harnesstrim install claude [dir]         Install skills + PostToolUse reducer hook (dry-run)
                             --apply         Actually write the change
+                            --no-hook       Skills only (no PostToolUse hook)
+                            --no-instructions  Skills only (no CLAUDE.md reduce-pipe instruction)
   harnesstrim install hermes [dir]         Install Hermes plugin (dry-run)
                             --apply         Actually write the change
   harnesstrim install pi [dir]             Install Pi tool_result extension (dry-run)
                             --apply         Actually write the change
+  harnesstrim uninstall <harness> [dir]    Remove only what install wrote (dry-run)
+                            --apply         Actually write the change
+  harnesstrim capabilities                 Print machine-readable per-harness capabilities (JSON)
   harnesstrim hook claude [--metrics <path>]
                                            PostToolUse hook runtime; --metrics records a TrimEvent per reduction
   harnesstrim hook codex [--metrics <path>]
@@ -61,8 +83,11 @@ Usage:
   harnesstrim bench                        Run the Tier A reducer micro-benchmark
   harnesstrim --version                    Print the installed version
 
+Flags:
+  --json                                  Print machine-readable JSON (doctor, metrics, install, uninstall)
+
 Notes:
-  - install is dry-run by default; nothing is written without --apply.
+  - install and uninstall are dry-run by default; nothing is written without --apply.
   - dir defaults to the current directory; metrics path defaults to ${DEFAULT_METRICS_PATH}.
   - reduce reads stdin and writes slimmed output to stdout, e.g.  npm test 2>&1 | harnesstrim reduce`;
 
@@ -81,6 +106,11 @@ async function main(argv: string[]): Promise<number> {
       metrics: { type: "string" },
       hook: { type: "boolean" },
       global: { type: "boolean" },
+      "no-hook": { type: "boolean" },
+      "no-instructions": { type: "boolean" },
+      mode: { type: "string" },
+      tools: { type: "string" },
+      json: { type: "boolean" },
     },
   });
 
@@ -99,7 +129,12 @@ async function main(argv: string[]): Promise<number> {
   switch (command) {
     case "doctor": {
       const dir = rest[0] ?? process.cwd();
-      console.log(renderDoctor(inspect(dir)));
+      const report = inspect(dir);
+      if (values.json) {
+        console.log(doctorJson(report));
+      } else {
+        console.log(renderDoctor(report));
+      }
       return 0;
     }
     case "install": {
@@ -109,9 +144,22 @@ async function main(argv: string[]): Promise<number> {
       // project-local or alternate-profile installation.
       const dir = rest[1] ?? (target === "hermes" ? os.homedir() : process.cwd());
       const apply = values.apply === true;
+      const asJson = values.json === true;
       if (target === "opencode") {
-        const result = runInstallOpencode(dir, apply, values.preset);
-        console.log(renderInstall(result, apply));
+        const mode = parseModeFlag(values.mode);
+        if (mode === undefined && values.mode !== undefined) {
+          console.error(`Invalid --mode: ${values.mode} (expected active, dryrun, or off).`);
+          return 1;
+        }
+        const minLength = values["min-length"] !== undefined ? Number(values["min-length"]) : undefined;
+        if (minLength !== undefined && !Number.isFinite(minLength)) {
+          console.error(`Invalid --min-length: ${values["min-length"]}`);
+          return 1;
+        }
+        const tools = values.tools !== undefined ? splitTools(values.tools) : undefined;
+        const result = runInstallOpencode(dir, apply, values.preset, true, { mode, minLength, tools });
+        if (asJson) console.log(JSON.stringify(opencodeInstallJson(result, apply), null, 2));
+        else console.log(renderInstall(result, apply));
         return 0;
       }
       if (target === "codex") {
@@ -120,26 +168,62 @@ async function main(argv: string[]): Promise<number> {
             console.error("`harnesstrim install codex --global` requires `--hook`.");
             return 1;
           }
-          console.log(renderCodexGlobalHookInstall(runInstallCodexGlobalHook(path.join(os.homedir(), ".codex"), apply), apply));
+          const result = runInstallCodexGlobalHook(path.join(os.homedir(), ".codex"), apply);
+          if (asJson) console.log(JSON.stringify(codexGlobalHookJson(result, apply), null, 2));
+          else console.log(renderCodexGlobalHookInstall(result, apply));
           return 0;
         }
-        console.log(renderCodexInstall(runInstallCodex(dir, apply, values.hook === true), apply));
+        const result = runInstallCodex(dir, apply, values.hook === true, {
+          includeInstructions: values["no-instructions"] !== true,
+        });
+        if (asJson) console.log(JSON.stringify(codexInstallJson(result, apply), null, 2));
+        else console.log(renderCodexInstall(result, apply));
         return 0;
       }
       if (target === "claude") {
-        console.log(renderClaudeInstall(runInstallClaude(dir, apply), apply));
+        const result = runInstallClaude(dir, apply, {
+          includeHook: values["no-hook"] !== true,
+          includeInstructions: values["no-instructions"] !== true,
+        });
+        if (asJson) console.log(JSON.stringify(claudeInstallJson(result, apply), null, 2));
+        else console.log(renderClaudeInstall(result, apply));
         return 0;
       }
       if (target === "hermes") {
-        console.log(renderHermesInstall(runInstallHermes(dir, apply), apply));
+        const result = runInstallHermes(dir, apply);
+        if (asJson) console.log(JSON.stringify(hermesInstallJson(result, apply), null, 2));
+        else console.log(renderHermesInstall(result, apply));
         return 0;
       }
       if (target === "pi") {
-        console.log(renderPiInstall(runInstallPi(dir, apply), apply));
+        const result = runInstallPi(dir, apply);
+        if (asJson) console.log(JSON.stringify(piInstallJson(result, apply), null, 2));
+        else console.log(renderPiInstall(result, apply));
         return 0;
       }
       console.error(`Unknown install target: ${target ?? "(none)"}. Supported: opencode, codex, claude, hermes, pi.`);
       return 1;
+    }
+    case "uninstall": {
+      const target = rest[0];
+      const dir = rest[1] ?? (target === "hermes" ? os.homedir() : process.cwd());
+      const apply = values.apply === true;
+      try {
+        const result = runUninstall(target, dir, apply);
+        if (values.json) {
+          console.log(JSON.stringify(result, null, 2));
+        } else {
+          console.log(renderUninstall(result, apply));
+        }
+      } catch (err) {
+        console.error(err instanceof Error ? err.message : String(err));
+        return 1;
+      }
+      return 0;
+    }
+    case "capabilities": {
+      console.log(JSON.stringify(getCapabilities(pkg.version), null, 2));
+      return 0;
     }
     case "hook": {
       const which = rest[0];
@@ -157,7 +241,13 @@ async function main(argv: string[]): Promise<number> {
           fs.mkdirSync(path.dirname(p), { recursive: true });
           fs.appendFileSync(
             p,
-            JSON.stringify({ ts: new Date().toISOString(), harness: which, ...event }) + "\n"
+            JSON.stringify(
+              makeTrimEvent({
+                ts: new Date().toISOString(),
+                harness: which,
+                ...event,
+              })
+            ) + "\n"
           );
         } catch {
           /* telemetry must never break the hook */
@@ -197,7 +287,12 @@ async function main(argv: string[]): Promise<number> {
     }
     case "metrics": {
       const path = rest[0] ?? DEFAULT_METRICS_PATH;
-      console.log(renderMetrics(loadMetrics(path)));
+      const result = loadMetrics(path);
+      if (values.json) {
+        console.log(metricsJson(result));
+      } else {
+        console.log(renderMetrics(result));
+      }
       return 0;
     }
     case "reduce": {
@@ -217,14 +312,16 @@ async function main(argv: string[]): Promise<number> {
           fs.mkdirSync(path.dirname(p), { recursive: true });
           fs.appendFileSync(
             p,
-            JSON.stringify({
-              ts: new Date().toISOString(),
-              harness: "pipe",
-              tool: "reduce",
-              reducer: result.reducer,
-              beforeChars: result.beforeChars,
-              afterChars: result.afterChars,
-            }) + "\n"
+            JSON.stringify(
+              makeTrimEvent({
+                ts: new Date().toISOString(),
+                harness: "pipe",
+                tool: "reduce",
+                reducer: result.reducer,
+                beforeChars: result.beforeChars,
+                afterChars: result.afterChars,
+              })
+            ) + "\n"
           );
         } catch {
           /* telemetry must never break the pipe */
@@ -274,6 +371,19 @@ async function main(argv: string[]): Promise<number> {
       console.log(HELP);
       return 1;
   }
+}
+
+/** Parse `--mode` into the adapter's Mode union; undefined when unset or invalid. */
+function parseModeFlag(value: string | undefined): "active" | "dryrun" | "off" | undefined {
+  return value === "active" || value === "dryrun" || value === "off" ? value : undefined;
+}
+
+/** Split a comma-separated `--tools` value into trimmed tool names. */
+function splitTools(value: string): string[] {
+  return value
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
 }
 
 main(process.argv.slice(2))

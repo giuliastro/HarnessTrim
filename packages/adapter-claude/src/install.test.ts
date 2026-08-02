@@ -71,3 +71,38 @@ test("CLAUDE.md instruction: present (idempotent) when the marker is already the
   const plan = planClaudeInstall({ ...base, claudeMdContent: `stuff\n<!-- ${HARNESSTRIM_MARKER} -->\n` });
   assert.equal(plan.instructionsAction, "present");
 });
+
+test("includeHook:false produces a skills-only state (no settings change)", () => {
+  const plan = planClaudeInstall({ ...base, includeHook: false });
+  assert.equal(plan.settingsAction, "skip");
+  assert.deepEqual(plan.nextSettings, {});
+  assert.equal(plan.instructionsAction, "create");
+});
+
+test("includeHook:false never patches existing settings", () => {
+  const existing = JSON.stringify({
+    model: "sonnet",
+    hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "other" }] }] },
+  });
+  const plan = planClaudeInstall({ ...base, settingsJsonContent: existing, includeHook: false });
+  assert.equal(plan.settingsAction, "skip");
+  assert.equal(plan.nextSettings.model, "sonnet");
+});
+
+test("includeInstructions:false produces a skills-only state (no CLAUDE.md change)", () => {
+  const plan = planClaudeInstall({ ...base, includeInstructions: false });
+  assert.equal(plan.instructionsAction, "skip");
+  assert.equal(plan.settingsAction, "create");
+});
+
+test("plan.changed is false when a skills-only install is already in that state", () => {
+  const first = planClaudeInstall({ ...base, includeHook: false, includeInstructions: false });
+  assert.equal(first.changed, true); // skills missing
+  const rerun = planClaudeInstall({
+    ...base,
+    includeHook: false,
+    includeInstructions: false,
+    existingSkillNames: base.skillNames,
+  });
+  assert.equal(rerun.changed, false);
+});

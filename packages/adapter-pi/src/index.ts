@@ -4,7 +4,7 @@ import path from "node:path";
  * HarnessTrim adapter for Pi (@earendil-works/pi-coding-agent).
  *
  * Pi loads TypeScript extensions from `~/.pi/agent/extensions/` (global) or
- * `<project>/.pi/extensions/` (project-local). Our extension (`extension/harnesstrim.ts`)
+ * `<project>/.pi/extensions/` (project-local). Our extension (`extension/index.ts`)
  * registers a `tool_result` handler that slims noisy tool output before it reaches the
  * model — Pi's deterministic tool-output hook, analogous to OpenCode's `tool.execute.after`.
  *

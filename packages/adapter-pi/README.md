@@ -12,6 +12,11 @@ The extension is **self-contained**: it shells out to `harnesstrim reduce` (no w
 it loads from any Pi extensions directory. `harnesstrim` must be on PATH; if it's missing the output
 passes through unchanged.
 
+> **Discovery note (Pi ≥ 0.82):** Pi's loader only discovers a *subdirectory* extension when it
+> contains `index.ts`/`index.js` or a `package.json` with a `pi.extensions` field. The installer
+> therefore ships the entry point as `harnesstrim/index.ts` (not `harnesstrim/harnesstrim.ts`), so the
+> extension is auto-loaded without settings registration.
+
 ## Install
 
 ```sh
@@ -34,8 +39,20 @@ Start in `dryrun`, watch for `[harnesstrim]` stderr lines, then set `HARNESSTRIM
 
 ## Status
 
-The install planner (`planPiInstall`) is pure and unit-tested; the extension ships with the package
-and is syntax-checked. The `tool_result` hook contract is confirmed against Pi's extension docs
-(events reference). **Not yet verified in a live Pi session** — the Pi CLI was not installed in the
-dev environment. To verify: `harnesstrim install pi --apply`, set `HARNESSTRIM_MODE=active`, run a
-command with noisy output in Pi, and confirm the model receives the slimmed version.
+Verified live on Pi 0.82.1 (2026-08-02), in both install scopes:
+
+- **Discovery fix:** Pi's loader (≥ 0.82) only auto-loads a *subdirectory* extension when it contains
+  `index.ts`/`index.js` or a `package.json` with a `pi.extensions` field. The installer ships the entry
+  point as `harnesstrim/index.ts`, which is picked up from `<project>/.pi/extensions/` and
+  `~/.pi/agent/extensions/` without settings registration. A second `--apply` refreshes the bundle and
+  prunes stale files from the installed dir.
+- **Dry-run:** with the default `HARNESSTRIM_MODE=dryrun`, the `tool_result` handler fires on `bash`
+  and `read` results and logs `[harnesstrim] dryrun tool_result: N -> M chars` to stderr without
+  changing anything.
+- **Active:** with `HARNESSTRIM_MODE=active`, text chunks are actually replaced — a 13902-char JSON
+  array reached the model as 6 lines (3 first + 3 last + `... omitted 74 items ...`) via
+  `json-output-slim`, and the model confirmed the omitted middle was genuinely absent.
+- **Failure safety:** with `harnesstrim` missing from PATH the output passes through unchanged; output
+  that already carries a `[harnesstrim` marker (already reduced) is never reduced twice.
+- Non-text chunks are left byte-for-byte untouched (unit-tested via `shouldSkip`; Pi's built-in tools
+  only emit text chunks, so this is not live-observable).

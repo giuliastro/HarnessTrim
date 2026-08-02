@@ -15,6 +15,8 @@ export interface AdapterConfig {
   debug: boolean;
   /** Inject compaction-handoff guidance on `experimental.session.compacting`. */
   compactionHandoff: boolean;
+  /** If set, only reduce outputs for these tool names (e.g. ["bash", "read"]). */
+  toolFilter: string[] | null;
   /** Append a TrimEvent JSONL record per reduction. Off by default (telemetry off by default). */
   telemetry: boolean;
   /** Where telemetry JSONL is appended (relative paths resolve against cwd). */
@@ -25,6 +27,22 @@ export const DEFAULT_TELEMETRY_PATH = ".harnesstrim/metrics.jsonl";
 
 function parseMode(value: unknown): Mode | undefined {
   return value === "active" || value === "dryrun" || value === "off" ? value : undefined;
+}
+
+/** Comma-separated string or array -> tool name list, or null when unset. */
+function parseToolFilter(value: unknown): string[] | null {
+  if (Array.isArray(value)) {
+    const names = value.filter((v): v is string => typeof v === "string" && v.length > 0);
+    return names.length > 0 ? names : null;
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    const names = value
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    return names.length > 0 ? names : null;
+  }
+  return null;
 }
 
 /**
@@ -43,6 +61,7 @@ export function resolveConfig(options: Record<string, unknown> = {}): AdapterCon
 
   const debug = options.debug === true || env.HARNESSTRIM_DEBUG === "1" || env.HARNESSTRIM_DEBUG === "true";
   const compactionHandoff = options.compactionHandoff !== false;
+  const toolFilter = parseToolFilter(options.toolFilter) ?? parseToolFilter(env.HARNESSTRIM_TOOLS);
 
   const telemetry =
     options.telemetry === true || env.HARNESSTRIM_TELEMETRY === "1" || env.HARNESSTRIM_TELEMETRY === "true";
@@ -51,5 +70,5 @@ export function resolveConfig(options: Record<string, unknown> = {}): AdapterCon
     env.HARNESSTRIM_TELEMETRY_PATH ??
     DEFAULT_TELEMETRY_PATH;
 
-  return { mode, minLength, debug, compactionHandoff, telemetry, telemetryPath };
+  return { mode, minLength, debug, compactionHandoff, toolFilter, telemetry, telemetryPath };
 }

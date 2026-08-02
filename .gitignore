@@ -3,6 +3,7 @@ dist/
 packages/cli/assets/
 *.log
 .DS_Store
+AGENTS.local.md
 benchmarks/reports/*.json
 benchmarks/tierB/reports/
 benchmarks/tierB/*/harnesstrim-metrics.jsonl

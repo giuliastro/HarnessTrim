@@ -1,12 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { summarize, parseTrimEvents, type TrimEvent } from "./trim-event.ts";
+import { summarize, parseTrimEvents, makeTrimEvent, type TrimEvent } from "./trim-event.ts";
 
 const events: TrimEvent[] = [
-  { ts: "t1", harness: "opencode", tool: "bash", reducer: "test-output-slim", beforeChars: 1000, afterChars: 400 },
-  { ts: "t2", harness: "opencode", tool: "bash", reducer: "git-diff-slim", beforeChars: 900, afterChars: 200 },
-  { ts: "t3", harness: "opencode", tool: "bash", reducer: "test-output-slim", beforeChars: 500, afterChars: 300 },
-  { ts: "t4", harness: "opencode", tool: "read", reducer: null, beforeChars: 100, afterChars: 100 },
+  makeTrimEvent({ ts: "t1", harness: "opencode", tool: "bash", reducer: "test-output-slim", beforeChars: 1000, afterChars: 400 }),
+  makeTrimEvent({ ts: "t2", harness: "opencode", tool: "bash", reducer: "git-diff-slim", beforeChars: 900, afterChars: 200 }),
+  makeTrimEvent({ ts: "t3", harness: "opencode", tool: "bash", reducer: "test-output-slim", beforeChars: 500, afterChars: 300 }),
+  makeTrimEvent({ ts: "t4", harness: "opencode", tool: "read", reducer: null, beforeChars: 100, afterChars: 100 }),
 ];
 
 test("summarize totals and percentage", () => {
@@ -55,4 +55,44 @@ test("parseTrimEvents accepts null reducer events", () => {
   const parsed = parseTrimEvents(JSON.stringify(events[3]));
   assert.equal(parsed.length, 1);
   assert.equal(parsed[0].reducer, null);
+});
+
+test("makeTrimEvent stamps the schema envelope (version 1, stable eventId, null tokens)", () => {
+  const e = makeTrimEvent({ harness: "opencode", tool: "bash", reducer: "x", beforeChars: 10, afterChars: 5 });
+  assert.equal(e.schemaVersion, 1);
+  assert.ok(e.eventId.length > 0);
+  assert.equal(e.beforeTokens, null);
+  assert.equal(e.afterTokens, null);
+  assert.ok(Number.isFinite(Date.parse(e.ts)));
+});
+
+test("makeTrimEvent carries token counts when the emitting path provides them", () => {
+  const e = makeTrimEvent({
+    harness: "opencode",
+    tool: "bash",
+    reducer: "x",
+    beforeChars: 10,
+    afterChars: 5,
+    beforeTokens: 8,
+    afterTokens: 4,
+  });
+  assert.equal(e.beforeTokens, 8);
+  assert.equal(e.afterTokens, 4);
+});
+
+test("parseTrimEvents normalizes legacy lines (no schema) to schemaVersion 0 and empty eventId", () => {
+  const legacy = JSON.stringify({
+    ts: "t1",
+    harness: "opencode",
+    tool: "bash",
+    reducer: "test-output-slim",
+    beforeChars: 1000,
+    afterChars: 400,
+  });
+  const parsed = parseTrimEvents(legacy);
+  assert.equal(parsed.length, 1);
+  assert.equal(parsed[0].schemaVersion, 0);
+  assert.equal(parsed[0].eventId, "");
+  assert.equal(parsed[0].beforeTokens, null);
+  assert.equal(parsed[0].afterChars, 400);
 });

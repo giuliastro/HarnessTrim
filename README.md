@@ -260,14 +260,20 @@ xychart-beta
 Phases 0–4 in progress. Shipped: reducers + benchmark, the 6-skill pack, adapters for **OpenCode**
 (runtime plugin, hardened in a live session), **Codex** (skills + AGENTS.md reduce-pipe, live-validated
 via `codex debug prompt-input`), **Claude Code** (PostToolUse reducer hook), **Hermes Agent**
-(`transform_tool_result` plugin, verified in a live session), and **Pi** (`tool_result` extension),
-plus an MCP `reduce` server, the `harnesstrim` CLI (doctor / install / preset / metrics / reduce /
+(`transform_tool_result` plugin, verified in a live session), and **Pi** (`tool_result` extension,
+verified live on 0.82.1),
+plus an MCP `reduce` server, the `harnesstrim` CLI (doctor / install / uninstall / capabilities / preset / metrics / reduce /
 hook / mcp / bench), telemetry, and policy presets. All five target harnesses now have an adapter.
 The CLI is **published on npm** (`npx harnesstrim`) as a single self-contained bundle.
 End-to-end Tier B runs on OpenCode (two tasks × two runs, quality retained in all 8) measured billed-token
 savings of **~2% on a tiny one-tool-call task and ~22–25% on a large-noisy-output task**, with the prompt
 cache preserved — the blended win scales with noisy-output volume vs fixed overhead. A larger multi-model,
-multi-tool-call study is the remaining Tier B work. 131 tests passing, typecheck clean on all packages.
+multi-tool-call study is the remaining Tier B work. 175 tests passing, typecheck clean on all packages.
+Installers support **narrowing** (skills-only installs via `--no-hook`/`--no-instructions`, OpenCode
+`--mode`/`--min-length`/`--tools` baked into the wrapper), `doctor`/`install`/`metrics` emit **`--json`**,
+`capabilities` reports per-harness surfaces/write-sets as JSON, and `uninstall` reverses an install
+dry-run-first (only removing what HarnessTrim wrote, marker-guarded). Telemetry lines carry a schema
+version and a stable event id.
 
 > **Known limitation (Claude Code):** the `PostToolUse` reducer hook installs and fires correctly, but
 > Claude Code (verified on 2.1.37 and 2.1.212) does not currently apply a hook's `updatedToolOutput`,
@@ -285,7 +291,8 @@ packages/adapter-claude/    Claude Code: PostToolUse reducer hook + skill bundle
 packages/adapter-hermes/    Hermes Agent: transform_tool_result reducer plugin (Python)
 packages/adapter-pi/        Pi: tool_result reducer extension (TypeScript)
 packages/mcp/               MCP server exposing a `reduce` tool (Codex, Claude Code, any MCP client)
-packages/cli/               harnesstrim CLI: doctor, install, preset, metrics, reduce, hook, mcp, bench
+packages/cli/               harnesstrim CLI: doctor, install, uninstall, capabilities, preset,
+                            metrics, reduce, hook, mcp, bench
 skills/                     portable Agent Skills (delta-response, debug-log-slim, review-delta,
                             compact-handoff, scaffold-fast, delegate-bulk)
 benchmarks/                 Tier A micro-benchmarks: reducer token-reduction, no LLM involved
@@ -298,14 +305,23 @@ examples/opencode/          minimal .opencode/ local-plugin wrapper wiring the a
 pnpm exec harnesstrim doctor [dir]            # diagnose token-waste signals in a project
 pnpm exec harnesstrim install opencode [dir]  # OpenCode: local plugin wrapper in .opencode/ (dry-run)
 pnpm exec harnesstrim install opencode --preset lean-debug --apply
+pnpm exec harnesstrim install opencode --mode dryrun --apply      # preview without reducing
+pnpm exec harnesstrim install opencode --min-length 2000 --apply  # leave outputs <2k chars untouched
+pnpm exec harnesstrim install opencode --tools bash,read --apply  # reduce only bash + read output
 pnpm exec harnesstrim install codex [dir]     # Codex: skills + AGENTS.md reduce-pipe (dry-run)
                                              # add --hook for experimental automatic Bash reduction
                                              # add --hook --global to install it once in ~/.codex
+                                             # add --no-instructions for skills only
 pnpm exec harnesstrim install claude [dir]    # Claude Code: skills + PostToolUse hook (dry-run)
+pnpm exec harnesstrim install claude --no-hook --apply            # skills + CLAUDE.md, no hook
 pnpm exec harnesstrim install hermes [dir]    # Hermes Agent: transform_tool_result plugin (dry-run)
 pnpm exec harnesstrim install pi [dir]        # Pi: tool_result extension (dry-run)
+pnpm exec harnesstrim uninstall claude [dir]  # reverse an install, dry-run (add --apply to remove)
+pnpm exec harnesstrim capabilities            # per-harness capabilities / write-sets as JSON
 pnpm exec harnesstrim preset list             # list policy presets
 pnpm exec harnesstrim metrics [path]          # summarize adapter telemetry (JSONL)
+pnpm exec harnesstrim doctor --json           # any command emitting a report accepts --json
+pnpm exec harnesstrim metrics --json          # machine-readable telemetry summary
 npm test 2>&1 | pnpm exec harnesstrim reduce  # pipe: slim noisy output (Codex/Claude/shell)
 npm test 2>&1 | pnpm exec harnesstrim reduce --metrics .harnesstrim/metrics.jsonl  # + record the saving
 pnpm exec harnesstrim bench                    # run the Tier A reducer micro-benchmark
@@ -316,9 +332,19 @@ pnpm exec harnesstrim bench                    # run the Tier A reducer micro-be
 - `install <harness>` is dry-run until `--apply`. Each adapter uses that harness's native surface:
   OpenCode a `tool.execute.after` plugin, Claude Code a `PostToolUse` hook, Hermes a
   `transform_tool_result` plugin, Pi a `tool_result` extension, Codex an AGENTS.md reduce-pipe
-  instruction. `--preset` (OpenCode) bakes a policy preset's adapter config in.
+  instruction. `--preset` (OpenCode) bakes a policy preset's adapter config in. Installs can be
+  **narrowed** per harness: `--no-hook`/`--no-instructions` (Claude/Codex) install skills only,
+  and OpenCode's `--mode active|dryrun|off`, `--min-length <n>`, and `--tools <list>` overrides
+  are baked into the generated wrapper.
+- `uninstall <harness>` reverses an install. It is dry-run until `--apply` and only touches files
+  HarnessTrim wrote: marker-guarded instruction regions, the skills it copied (including a now-empty
+  parent skills dir), hook entries it added, and the OpenCode wrapper/dependency.
+- `capabilities` prints a JSON table of what this build supports per harness: adapter surface,
+  available narrowing flags, and the exact write-set each installer owns.
+- `doctor`, `install`, and `metrics` accept `--json` for machine-readable output (scripts/CI).
 - `reduce` is the pipe-friendly reducer (RTK-style) shared across harnesses.
 - `metrics` aggregates the telemetry the adapter emits (off by default) into chars saved per reducer.
+  Lines carry a schema version and a stable event id.
 
 ## Try it
 
@@ -359,6 +385,16 @@ harness. "dry-run mode" here means the adapter logs what it *would* slim without
 Guidance: for the dry-run adapters (Hermes, Pi) keep the default while you confirm it slims the right
 things (watch stderr for `[harnesstrim] dryrun ...` lines), then flip to `active` persistently.
 Telemetry is **off by default everywhere**; enable it only where you want a metrics trail.
+
+Telemetry lines are JSONL with a schema version and a stable event id, e.g.:
+
+```jsonl
+{"schemaVersion":1,"eventId":"…","ts":"2026-08-01T…","harness":"opencode","tool":"bash","reducer":"test-output-slim","beforeChars":1410,"afterChars":124,"beforeTokens":null,"afterTokens":null}
+```
+
+`beforeTokens`/`afterTokens` are `null` unless the emitting path has real counts (no tokenizer runs in
+the harness process). `harnesstrim metrics <path>` aggregates these; legacy schemaVersion-0 lines are
+still accepted.
 
 ### OpenCode
 
@@ -470,7 +506,12 @@ harnesstrim install pi ~ --apply           # global: ~/.pi/... (pass your home d
 
 Copies a TypeScript extension that hooks Pi's `tool_result` and slims noisy output via
 `harnesstrim reduce` (so `harnesstrim` must be on PATH). It starts in `dryrun`; set
-`HARNESSTRIM_MODE=active` in Pi's environment to reduce. Details:
+`HARNESSTRIM_MODE=active` in Pi's environment to reduce. **Verified live on Pi 0.82.1:** the
+extension ships as `harnesstrim/index.ts` because Pi's loader only auto-discovers a subdirectory
+extension via `index.ts` (or a `package.json` with a `pi.extensions` field); dryrun logs
+`[harnesstrim] dryrun ...` to stderr, active mode replaces text chunks (a 13902-char JSON array
+reached the model as 6 lines), output passes through when `harnesstrim` is missing, and already-reduced
+output is never reduced twice. Details:
 [`packages/adapter-pi`](packages/adapter-pi/README.md).
 
 ### Any MCP-capable harness

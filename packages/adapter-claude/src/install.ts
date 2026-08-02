@@ -28,9 +28,9 @@ generated-file (lockfile/dist) diffs, and records what was saved. Prefer the ins
 for output, review, and scaffolding discipline.
 <!-- harnesstrim:end -->`;
 
-export type InstructionsAction = "create" | "append" | "present";
+export type InstructionsAction = "create" | "append" | "present" | "skip";
 
-export type SettingsAction = "create" | "patch" | "present";
+export type SettingsAction = "create" | "patch" | "present" | "skip";
 
 export interface SkillCopy {
   name: string;
@@ -50,6 +50,8 @@ export interface ClaudeInstallPlan {
   instructionsFile: string;
   instructionsAction: InstructionsAction;
   instructionsSnippet: string;
+  /** Whether any write would change state (false when the desired state is already present). */
+  changed: boolean;
 }
 
 export interface ClaudeInstallInput {
@@ -61,6 +63,10 @@ export interface ClaudeInstallInput {
   /** Current content of CLAUDE.md, or null if it does not exist. */
   claudeMdContent: string | null;
   existingSkillNames: string[];
+  /** Install skills without the PostToolUse hook (skills-only state). Default false. */
+  includeHook?: boolean;
+  /** Install skills without the marker-guarded CLAUDE.md reduce-pipe instruction. Default true. */
+  includeInstructions?: boolean;
 }
 
 interface HookEntry {
@@ -84,6 +90,8 @@ function hasHarnessTrimHook(settings: Record<string, unknown>): boolean {
  * present (idempotent).
  */
 export function planClaudeInstall(input: ClaudeInstallInput): ClaudeInstallPlan {
+  const includeHook = input.includeHook ?? true;
+  const includeInstructions = input.includeInstructions ?? true;
   const skillsDest = path.join(input.projectDir, ".claude", "skills");
   const existing = new Set(input.existingSkillNames);
   const skills: SkillCopy[] = input.skillNames.map((name) => ({
@@ -108,14 +116,22 @@ export function planClaudeInstall(input: ClaudeInstallInput): ClaudeInstallPlan 
     action = hasHarnessTrimHook(settings) ? "present" : "patch";
   }
 
-  const nextSettings = action === "present" ? settings : addHook(settings);
+  // Skills-only install: never touch settings (the hook is the only settings write).
+  if (!includeHook) {
+    action = "skip";
+    settings = input.settingsJsonContent === null ? {} : settings;
+  }
+
+  const nextSettings = action === "present" || action === "skip" ? settings : addHook(settings);
 
   const instructionsAction: InstructionsAction =
-    input.claudeMdContent === null
-      ? "create"
-      : input.claudeMdContent.includes(HARNESSTRIM_MARKER)
-        ? "present"
-        : "append";
+    !includeInstructions
+      ? "skip"
+      : input.claudeMdContent === null
+        ? "create"
+        : input.claudeMdContent.includes(HARNESSTRIM_MARKER)
+          ? "present"
+          : "append";
 
   return {
     skillsDest,
@@ -126,6 +142,7 @@ export function planClaudeInstall(input: ClaudeInstallInput): ClaudeInstallPlan 
     instructionsFile: path.join(input.projectDir, "CLAUDE.md"),
     instructionsAction,
     instructionsSnippet: REDUCE_INSTRUCTION_SNIPPET,
+    changed: skills.some((s) => !s.present) || (action !== "present" && action !== "skip") || (instructionsAction !== "present" && instructionsAction !== "skip"),
   };
 }
 

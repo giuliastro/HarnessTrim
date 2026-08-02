@@ -277,16 +277,38 @@ OpenCode plugins run on — this is a deliberate exception, not an inconsistency
 ### v0.0.6 — installation and adapter hardening
 
 **Goal:** make every published CLI path work from a clean npm installation and close the remaining
-Pi integration uncertainty.
+Pi integration uncertainty (resolved 2026-08-02 — Pi live-verified on 0.82.1).
 
 - Ship `--version`/`-v` in the CLI and preserve the bundled-asset resolver for every installer.
+- **DONE — 2026-08-01** Install-precision and machine-readable surfaces (`docs/token-harness-onboarding.md`):
+  per-harness narrowing (`--no-hook`/`--no-instructions` for Claude/Codex skills-only installs;
+  OpenCode `--mode`/`--min-length`/`--tools` baked into the generated wrapper); `--json` output for
+  `doctor`/`install`/`metrics`; a `capabilities` command exposing each harness's adapter surface,
+  narrowing flags, and exact write-set; a dry-run-first `uninstall <harness>` that only removes what
+  HarnessTrim wrote (marker-guarded instruction regions, copied skills + now-empty parent dir, added
+  hook entries, OpenCode wrapper + dependency); and telemetry hardening (`schemaVersion` + stable
+  `eventId` on every TrimEvent, legacy JSONL lines normalized, emitters updated in the OpenCode/MCP
+  hooks and Hermes plugin). 169 tests, typecheck clean.
 - Validate Pi's structured `tool_result.content` against a live Pi session in both `dryrun` and
   `active` modes. Confirm that text chunks shrink, non-text chunks are unchanged, failed reductions
   pass through, and the marker prevents a second reduction.
+- **DONE — 2026-08-02** Pi live hardening on Pi 0.82.1 (see status log). Root-cause fix found: Pi's
+  loader only auto-discovers a *subdirectory* extension via `index.ts`/`index.js` or a `package.json`
+  with a `pi.extensions` field — the installer wrote `harnesstrim/harnesstrim.ts`, which was never
+  loaded. Renamed the entry point to `harnesstrim/index.ts`, made the installer prune stale bundle
+  files on refresh, and added a `shouldSkip` unit test for the extension's non-text/marker-guard paths.
 - Test both Pi install scopes: project (`<project>/.pi/extensions`) and user
   (`~/.pi/agent/extensions`), including a second `--apply` that refreshes the bundle.
 - Add a clean-package smoke test that runs each installer from `npm pack` output, so source-layout
   assumptions cannot regress.
+- **DONE — 2026-08-02** Clean-package smoke test (`packages/cli/smoke-test.sh`) extended and fixed:
+  covers all five installers dry-run/apply/idempotent, the new v0.0.7 surfaces (narrowing flags,
+  `--json` for doctor/install, `capabilities`, `uninstall` dry-run + apply), `--min-length` threshold
+  semantics, and the MCP/bench/metrics paths. Fixed during the pass: the reduce check used a lint wall
+  below the 400-char min-length (never reduced); narrowed installs (`--no-hook`/`--no-instructions`)
+  now render an explicit "skipped" state instead of a false "already present" (new `"skip"` plan
+  action on Claude settings/instructions and Codex instructions); and `uninstall opencode` removes a
+  plugin dir that contained only our wrapper. 175 tests, typecheck clean, smoke green.
 
 **Exit criteria:** live Pi proof recorded; packaged CLI installation smoke tests pass; every adapter's
 documented install path works from an empty directory.
@@ -330,6 +352,81 @@ multi-tool Tier B evidence are all repeatable.
 ## 10. Status log
 
 
+- **2026-08-02** — **Pi adapter live-hardened and VERIFIED on Pi 0.82.1** (the last §9 v0.0.6
+  uncertainty). Pi is installed (`pi` 0.82.1, provider `opencode`, model `deepseek-v4-flash-free`).
+  What happened:
+  - **Root-cause discovery fix (the important part):** the installed extension was never loaded. Pi's
+    loader (`dist/core/extensions/loader.js`) only discovers a *subdirectory* extension via
+    `index.ts`/`index.js` or a `package.json` with a `pi.extensions` field; our installer wrote
+    `harnesstrim/harnesstrim.ts`, which Pi silently ignored. Renamed the entry point to
+    `packages/adapter-pi/extension/index.ts`, and `runInstallPi` now prunes stale bundle files on
+    refresh so the installed dir always mirrors the shipped bundle. Verified in both scopes
+    (`~/.pi/agent/extensions/` user + `<project>/.pi/extensions/` project).
+  - **Live dry-run:** default `HARNESSTRIM_MODE=dryrun` — `tool_result` fires on `bash` and `read`,
+    logs `[harnesstrim] dryrun tool_result: N -> M chars` to stderr, changes nothing.
+  - **Live active:** `HARNESSTRIM_MODE=active` — a 13902-char JSON array (`cat noisy.json`) reached
+    the model as **6 lines (3 first + 3 last + `... omitted 74 items ...`)** via `json-output-slim`;
+    the model independently confirmed it could NOT see id 40 (the omitted middle) and could count only
+    the 6 visible entries. The `read` tool was trimmed the same way.
+  - **Failure safety (live):** with `harnesstrim` removed from PATH, the same file passed through
+    untouched (model counted all 80 entries). Already-reduced output (carrying the `[harnesstrim`
+    marker) was NOT reduced again.
+  - New `packages/adapter-pi/src/extension.test.ts` unit-tests `shouldSkip` (min-length boundary,
+    marker guard, pass-through). adapter-pi suite now 9 tests; **173 tests total, typecheck clean**;
+    Tier A bench still passes fidelity. Docs updated (adapter-pi README Status, root README Pi
+    section + Status + count, PLAN §9).
+  - **Smoke test DONE (same day):** `packages/cli/smoke-test.sh` extended and fixed (see the follow-up
+    below), so the remaining v0.0.6 roadmap item is closed — the fixes ship in `harnesstrim@0.0.7`.
+    Next version is §9 v0.1.0 (telemetry-driven reducers, metrics depth, release CI).
+
+- **2026-08-02** — **Clean-package smoke test extended + two honesty/precision fixes (v0.0.7, DONE).**
+  (`0.0.6` was already published on 2026-08-01 from `de365e7`/`origin/main` — this work and the
+  install-precision commit `122d05a` ship in the next release, **`harnesstrim@0.0.7`**.)
+  `packages/cli/smoke-test.sh` now runs every installer from `npm pack` output and checks: `--version`,
+  zero runtime deps in the packed tarball, all five installers apply (with their assets present), the
+  MCP/bench/metrics paths, narrowed installs (`--no-hook`/`--no-instructions`), opencode
+  `--mode dryrun --min-length 2000 --tools bash,read` wrapper config, `capabilities` JSON listing all
+  five harnesses, `doctor --json`/`install --json` parse, and `uninstall` dry-run vs `--apply` for
+  pi/opencode/claude. Fixed during the pass:
+  - The reduce check fed a lint wall **below the 400-char min-length**, so lint-output-slim never
+    reduced; the sample is now a 30-line wall, and a `--min-length 999999` pass-through check pins the
+    threshold semantics (`--min-length` can only *raise* the floor, never lower below 400).
+  - **"skip" plan action for narrowed installs:** `--no-hook`/`--no-instructions` previously rendered
+    a false "already present (no change)" because the planners reported `"present"` for excluded
+    surfaces. Added `"skip"` to `InstructionsAction` (adapter-codex + adapter-claude) and
+    `SettingsAction` (adapter-claude); planners/runners/render/json all honor it ("hook skipped
+    (--no-hook); skills only"), and `changed` now ignores both `"present"` and `"skip"` so a skills-only
+    re-install stays idempotent.
+  - **`uninstall opencode` now removes the plugin dir** when it contained only our wrapper (the
+    previous emptiness check ran at plan time while the wrapper still existed, so it never fired).
+  - 175 tests (cli 45→47), typecheck clean, smoke green, Tier A bench still passes fidelity.
+
+
+- **2026-08-01** — **Install-precision, machine-readable output, safe uninstall, telemetry hardening
+  (ships in v0.0.7, per `docs/token-harness-onboarding.md`).** Implemented on
+  `feat/install-precision-json-uninstall` (pushed to gervaso, unmerged):
+  - **Narrowed installs:** `install claude --no-hook` / `--no-instructions` and `install codex
+    --no-instructions` do skills-only installs (planners honor `includeHook`/`includeInstructions`;
+    nothing else is touched). `install opencode --mode active|dryrun|off`, `--min-length <n>`, and
+    `--tools <name,...>` bake their overrides into the generated wrapper config.
+  - **Machine-readable output:** `doctor`, `install <harness>`, and `metrics` accept `--json`
+    (`packages/cli/src/json.ts`). `capabilities` prints a JSON table of what this build supports per
+    harness: adapter surface, available narrowing flags, and the exact write-set each installer owns.
+  - **`uninstall <harness>`** (`packages/cli/src/uninstall.ts`): dry-run until `--apply`; only removes
+    what HarnessTrim wrote — marker-guarded instruction regions, the copied skill dirs (and a now-empty
+    parent skills dir), the hook entries it added, and the OpenCode wrapper + package.json dependency.
+    Parent-dir and package.json handling were fixed during the test pass (3 failures → 0).
+  - **Telemetry hardening:** every TrimEvent now carries `schemaVersion: 1` and a stable `eventId`
+    (randomUUID), with `beforeTokens`/`afterTokens` nullable; `makeTrimEvent()` is the single emitter
+    in the OpenCode plugin, MCP server, and CLI hook/reduce paths; the Hermes Python plugin writes the
+    same shape; `parseTrimEvents` normalizes legacy schemaVersion-0 lines. `TrimEvent` schema remains
+    backward-compatible for `metrics` summaries.
+  - 169 tests green (core 66, cli 45, adapter-claude 19, adapter-codex 16, adapter-opencode 9,
+    adapter-hermes/pi 5 each, mcp 4), typecheck clean on all packages. Smoke-tested live: `--json`
+    install/uninstall/doctor/metrics, `--no-hook` install, and `uninstall --apply` from a scratch dir.
+  - Next: package + publish v0.0.7 (these changes + the Pi/smoke-test fixes); then
+    the §9 v0.1.0 release CI and v0.2.0 Tier B matrix.
+
 - **RESUME HERE (next session).** Repo is green: CI passes on Linux/Windows/macOS, 119 tests,
   typecheck clean, bench fidelity OK. **`harnesstrim` is LIVE on npm and verified working end-to-end**
   (`npx harnesstrim@latest doctor` runs from a clean dir; **latest = 0.0.4**, which ships the fixed
@@ -349,8 +446,8 @@ multi-tool Tier B evidence are all repeatable.
      `settings.local.json` hooks mid-session** (no restart needed — the old "needs a restart" guess was
      wrong on two counts). Follow-up: file the bug (draft in the 2026-07-17 entry). Claude Code users
      get deterministic reduction today via the MCP `reduce` tool or the `harnesstrim reduce` pipe.
-  3. Pi live hardening (needs the Pi CLI installed); coverage-driven new reducers (needs accumulated
-     real telemetry from `.harnesstrim/metrics.jsonl`).
+   3. **[DONE — 2026-08-02]** Pi live hardening (see the 2026-08-02 entry); coverage-driven new reducers
+      (needs accumulated real telemetry from `.harnesstrim/metrics.jsonl`).
   4. Follow-ups on the live package: publish skills as part of the package or a `create` flow; add a
      CI release job; consider `harnesstrim@0.0.x` → `0.1.0` once Tier B numbers land.
   Dogfooding is live: the Claude PostToolUse hook (in `.claude/settings.local.json`, gitignored)

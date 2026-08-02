@@ -6,6 +6,7 @@ import type { CodexGlobalHookInstallResult, CodexInstallResult } from "./install
 import type { ClaudeInstallResult } from "./install-claude.ts";
 import type { PiInstallResult } from "./install-pi.ts";
 import type { HermesInstallResult } from "./install-hermes.ts";
+import type { UninstallResult } from "./uninstall.ts";
 
 const ICON: Record<Severity, string> = { warn: "!", info: "i", ok: "+" };
 
@@ -116,11 +117,13 @@ export function renderCodexInstall(result: CodexInstallResult, apply: boolean): 
   lines.push("");
 
   const instr =
-    plan.instructionsAction === "present"
-      ? "AGENTS.md already contains the HarnessTrim instruction (no change)."
-      : plan.instructionsAction === "create"
-        ? `AGENTS.md ${apply ? "created" : "would be created"} with the reduce-pipe instruction.`
-        : `Reduce-pipe instruction ${apply ? "appended" : "would be appended"} to AGENTS.md.`;
+    plan.instructionsAction === "skip"
+      ? "AGENTS.md instruction skipped (--no-instructions); skills only."
+      : plan.instructionsAction === "present"
+        ? "AGENTS.md already contains the HarnessTrim instruction (no change)."
+        : plan.instructionsAction === "create"
+          ? `AGENTS.md ${apply ? "created" : "would be created"} with the reduce-pipe instruction.`
+          : `Reduce-pipe instruction ${apply ? "appended" : "would be appended"} to AGENTS.md.`;
   lines.push(instr);
 
   if (result.hookPlan) {
@@ -175,7 +178,9 @@ export function renderClaudeInstall(result: ClaudeInstallResult, apply: boolean)
   }
   lines.push("");
 
-  if (plan.settingsAction === "present") {
+  if (plan.settingsAction === "skip") {
+    lines.push(`${plan.settingsFile}: PostToolUse hook skipped (--no-hook); skills only.`);
+  } else if (plan.settingsAction === "present") {
     lines.push(`${plan.settingsFile}: PostToolUse reducer hook already present (no change).`);
   } else {
     lines.push(
@@ -188,7 +193,9 @@ export function renderClaudeInstall(result: ClaudeInstallResult, apply: boolean)
     }
   }
   lines.push("");
-  if (plan.instructionsAction === "present") {
+  if (plan.instructionsAction === "skip") {
+    lines.push(`${plan.instructionsFile}: reduce-pipe instruction skipped (--no-instructions); skills only.`);
+  } else if (plan.instructionsAction === "present") {
     lines.push(`${plan.instructionsFile}: reduce-pipe instruction already present (no change).`);
   } else {
     lines.push(
@@ -248,7 +255,7 @@ export function renderPiInstall(result: PiInstallResult, apply: boolean): string
       lines.push(`  Copied: ${result.copiedFiles.join(", ")}`);
     } else {
       lines.push(`  Source: ${plan.extensionSource}`);
-      lines.push("  (harnesstrim.ts + .installed marker)");
+      lines.push("  (index.ts + .installed marker)");
     }
     lines.push("");
     lines.push("The extension hooks Pi's `tool_result` and needs `harnesstrim` on PATH.");
@@ -282,5 +289,35 @@ export function renderMetrics(result: MetricsResult): string {
     const p = b.beforeChars === 0 ? 0 : Math.round((b.savedChars / b.beforeChars) * 1000) / 10;
     lines.push(`  ${b.reducer.padEnd(20)} ${b.count}x  saved ${b.savedChars} chars (-${p}%)`);
   }
+  return lines.join("\n");
+}
+
+export function renderUninstall(result: UninstallResult, apply: boolean): string {
+  const lines: string[] = [`${apply ? "Uninstalled" : "Would uninstall"} ${result.harness} integration`, ""];
+  if (!result.changed) {
+    lines.push("Nothing to remove — no HarnessTrim files found in the install set.");
+    return lines.join("\n");
+  }
+  for (const action of result.actions) {
+    const verb =
+      action.type === "remove-file" || action.type === "remove-dir"
+        ? apply
+          ? "removed"
+          : "remove"
+        : action.type === "write"
+          ? apply
+            ? "updated"
+            : "update"
+          : "clean";
+    lines.push(`  ${verb.padEnd(8)} ${action.path}`);
+    if (action.note) lines.push(`             (${action.note})`);
+  }
+  if (!apply) {
+    lines.push("");
+    lines.push("Dry run — nothing written. Re-run with `--apply`.");
+  }
+  lines.push("");
+  lines.push("Only files HarnessTrim wrote are touched; marker-guarded regions and your");
+  lines.push("other settings/hook entries are preserved.");
   return lines.join("\n");
 }

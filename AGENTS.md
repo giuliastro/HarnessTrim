@@ -13,12 +13,9 @@ making changes.
 
 ## Commands
 
-The repo uses pnpm, but `pnpm` and `opencode` are NOT always on the session PATH. Use the
-full paths:
-
-```sh
-export PATH="$HOME/.nvm/versions/node/v24.13.0/bin:$HOME/.opencode/bin:$PATH"
-```
+The repo uses pnpm, but `pnpm` and `opencode` are NOT always on the session PATH. Ensure
+they are on the session PATH (machine-specific toolchain paths live in AGENTS.local.md,
+which is git-ignored — not in this file).
 
 - Typecheck: `npm run typecheck`
 - Test: `npm test`
@@ -27,16 +24,10 @@ export PATH="$HOME/.nvm/versions/node/v24.13.0/bin:$HOME/.opencode/bin:$PATH"
   `node --experimental-strip-types benchmarks/src/run.ts`
 - CLI build (esbuild bundle + staged assets): `node packages/cli/build.mjs`
 
-## Git / remotes
+## Git
 
-- `origin` = https://github.com/giuliastro/HarnessTrim.git (read-only access from this account)
-- `gervaso` = https://github.com/gervaso-assistant/HarnessTrim.git (write access, token via gh keyring)
-- Active gh account: `gervaso-assistant` (git protocol: ssh). Push flow = push to `gervaso`
-  branch, open a PR into `giuliastro/HarnessTrim` via `gh pr create --repo giuliastro/HarnessTrim`.
-- `harnesstrim` lives at `~/.opencode/bin/opencode` (1.18.x) — not on the session PATH.
-- Credentials: gh token lives in the Zorin keyring; it is NOT readable programmatically
-  from a non-graphical shell (collections come back locked). Do not attempt to read it.
 - Only commit/push when the user explicitly asks.
+- Remote/push conventions are machine-specific; see AGENTS.local.md.
 
 ## Benchmarks / token accounting
 
@@ -49,10 +40,12 @@ export PATH="$HOME/.nvm/versions/node/v24.13.0/bin:$HOME/.opencode/bin:$PATH"
 
 ## Published state (as of last work)
 
-- `harnesstrim` published: latest 0.0.5. 0.0.6 (lint-output-slim reducer, install/readStdin
-  hang fixes, clean-package smoke test) is in PR.
+- `harnesstrim` published: latest 0.0.6 (2026-08-01). 0.0.7 in flight (open PR): Pi
+  discovery fix (`index.ts`), install-precision narrowing, `--json`/`capabilities`,
+  `uninstall`, TrimEvent schema, extended smoke test.
 - CLI features already present: `doctor`, `install opencode|codex|claude|hermes|pi`,
-  `hook claude`, `reduce`, `mcp`, `bench`, `preset list/show`, `metrics`, `--version`.
+  `hook claude`, `reduce`, `mcp`, `bench`, `preset list/show`, `metrics`, `--version`,
+  `capabilities`, `uninstall`, `--json` on doctor/install/metrics.
 - All five harness adapters exist (opencode/claude/codex/hermes/pi hooks; codex via
   instruction + MCP).
 - CI: `.github/workflows/ci.yml` (typecheck/test/bench on 3 OS + hermes plugin tests).
