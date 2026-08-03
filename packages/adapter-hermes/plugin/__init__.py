@@ -236,6 +236,7 @@ def _write_metric(tool: str, reducer: str | None, before: int, after: int) -> No
         "reducer": reducer,
         "beforeChars": before,
         "afterChars": after,
+        "changed": True,
         "beforeTokens": None,
         "afterTokens": None,
     }

@@ -324,6 +324,27 @@ documented install path works from an empty directory.
 - Add release CI: typecheck, tests, Tier A fidelity benchmark, package smoke test, version/tag
   validation, npm publish, and generated release notes.
 
+**Status — 2026-08-03 (implemented, not yet released):**
+- `harnesstrim metrics` depth done: `summarize()` now reports per-harness breakdowns (`byHarness`),
+  attempt accounting (`reduced` / `passThrough` / `passThroughRate`) and reduction errors
+  (`reductionErrors` + `grewChars` — attempts recorded as changed that grew the output). TrimEvent
+  gained an additive `changed` field (default `true`; legacy lines normalize the same); the stream
+  schemaVersion stays 1.
+- Pass-through events are recorded by every emitter (OpenCode adapter, MCP `reduce`, `reduce` pipe,
+  Claude/Codex hooks) so the pass-through rate has a real denominator. On by default whenever
+  telemetry is on; opt out with `trackPassThrough: false` / `HARNESSTRIM_TRACK_PASSTHROUGH=0|false`.
+  Only char counts are recorded — never tool payloads. Hook adapters expose the attempted-but-
+  unchanged case via a new `attempt` field on `ClaudeReduction`/`CodexReduction`.
+- `lint-output-slim` (the §8 opportunity from the 2026-08-01 Tier B run) shipped earlier and is in
+  the bench: `lint/eslint-wall.txt` measures **−94.3% tokens at 100% signal recall**.
+- Release CI added (`.github/workflows/release.yml`): tag `v*` (or manual) → typecheck, test, Tier A
+  bench, version/tag validation (`scripts/validate-release.mjs`: tag must match
+  `packages/cli/package.json`, version must not exist on npm), CLI build + clean-package smoke test,
+  then npm publish (npm-publish environment, `NPM_TOKEN` secret) and a GitHub release with generated
+  notes.
+- 182 tests, typecheck clean, smoke green, Tier A bench fidelity OK. CLI version bumped to **0.1.0**;
+  publish is gated on an explicit tag push (user).
+
 **Exit criteria:** the release pipeline publishes a tested package; reducer additions are supported by
 telemetry and preserve benchmark signal recall.
 
@@ -350,6 +371,40 @@ savings for each supported integration path.
 multi-tool Tier B evidence are all repeatable.
 
 ## 10. Status log
+
+
+- **2026-08-03** — **v0.1.0 implemented (metrics depth + release CI), CLI bumped to 0.1.0, publish
+  still user-gated.** What landed:
+  - **`harnesstrim metrics` depth (the "trustworthy measurement" half).** `summarize()` now reports
+    `byHarness` (per-harness savings, sorted desc), attempt accounting (`reduced` / `passThrough` /
+    `passThroughRate`) and `reductionErrors` + `grewChars` for attempts marked changed that grew the
+    output. TrimEvent gained an additive, backward-compatible `changed` field (default `true`; legacy
+    schemaVersion-0 lines normalize to it, caveat: legacy events predate it and count as reduced).
+  - **Pass-through telemetry on by default when telemetry is on.** Every emitter — OpenCode
+    `tool.execute.after`, MCP `reduce`, the `reduce` pipe, and the Claude/Codex hooks — now records an
+    attempted-but-unchanged event (`reducer: null`, `changed: false`) for inputs over min-length, so
+    the pass-through rate has a true denominator (the evidence base for the "add reducers only for
+    repeated noisy-output classes" gate). Opt-out: `trackPassThrough: false` (OpenCode options) or
+    `HARNESSTRIM_TRACK_PASSTHROUGH=0|false` (env, respected by all paths). Char counts only — no tool
+    payloads, ever. Hook adapters gained an `attempt` field on `ClaudeReduction`/`CodexReduction`
+    (parseable payload, output ≥ minLength, nothing changed).
+  - **Release CI (`release.yml`).** Tag `v*` (or workflow_dispatch) → quality job (typecheck, full
+    test suite, Tier A bench fidelity gate, CLI build + the clean-package smoke test, and
+    `scripts/validate-release.mjs` which asserts tag = `packages/cli/package.json` version and that the
+    version is not already on npm) → publish job (`npm-publish` environment, `NPM_TOKEN` secret, npm
+    publish from `packages/cli`; `NODE_AUTH_TOKEN` used with registry-url) → `gh release create
+    --generate-notes`. Local validation verified: `v0.0.7` correctly rejected (already on npm),
+    `v0.1.0` accepted (publishable).
+  - `lint-output-slim` was already shipped (dispatch + fixture + tests); the bench confirms it on
+    `lint/eslint-wall.txt`: **−94.3% tokens, 5/5 must-keep, 0 dropped signal lines**. Tier A global:
+    −76.6% tokens, 100% recall, fidelity OK.
+  - Verification: **182 tests** (core 68, cli 49, adapter-opencode 12/other adapters green), typecheck
+    clean on all 9 packages, `packages/cli/smoke-test.sh` green on the `harnesstrim-0.1.0.tgz` tarball,
+    end-to-end pipe→metrics checked live (a 1200-char pass-through + a 488-char test run → render and
+    `--json` show per-harness/per-reducer splits, 50% pass-through). PLATE note on npm's 2FA: use the
+    2026-07-16 automation-token publish path.
+  - Remaining for release: `git push` a branch → PR → tag `v0.1.0` (as first released) and let the new
+    pipeline do the rest; the "npm-publish" environment needs `NPM_TOKEN` configured in the repo.
 
 
 - **2026-08-02** — **Pi adapter live-hardened and VERIFIED on Pi 0.82.1** (the last §9 v0.0.6

@@ -102,3 +102,46 @@ test("telemetry: dryrun still records what would be reduced", async () => {
   const events = parseTrimEvents(fs.readFileSync(telemetryPath, "utf8"));
   assert.equal(events.length, 1); // but it recorded the potential reduction
 });
+
+test("telemetry: records a pass-through when tracking is on (default)", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "htrim-telemetry-"));
+  const telemetryPath = path.join(dir, "metrics.jsonl");
+  const hooks = await HarnessTrim(noopInput, { mode: "active", telemetry: true, telemetryPath });
+  const longNoMatch = "plain prose ".repeat(100); // > 400 chars, no reducer matches
+  const { input, output } = afterArgs(longNoMatch);
+  await hooks["tool.execute.after"]!(input, output);
+
+  assert.equal(output.output, longNoMatch);
+  const events = parseTrimEvents(fs.readFileSync(telemetryPath, "utf8"));
+  assert.equal(events.length, 1);
+  assert.equal(events[0].changed, false);
+  assert.equal(events[0].reducer, null);
+  assert.equal(events[0].beforeChars, longNoMatch.length);
+});
+
+test("telemetry: pass-through tracking can be opted out", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "htrim-telemetry-"));
+  const telemetryPath = path.join(dir, "metrics.jsonl");
+  const hooks = await HarnessTrim(noopInput, {
+    mode: "active",
+    telemetry: true,
+    telemetryPath,
+    trackPassThrough: false,
+  });
+  const longNoMatch = "plain prose ".repeat(100);
+  const { input, output } = afterArgs(longNoMatch);
+  await hooks["tool.execute.after"]!(input, output);
+
+  assert.equal(fs.existsSync(telemetryPath), false);
+});
+
+test("telemetry: sub-threshold output records no pass-through", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "htrim-telemetry-"));
+  const telemetryPath = path.join(dir, "metrics.jsonl");
+  const hooks = await HarnessTrim(noopInput, { mode: "active", telemetry: true, telemetryPath });
+  const short = "no structure here";
+  const { input, output } = afterArgs(short);
+  await hooks["tool.execute.after"]!(input, output);
+
+  assert.equal(fs.existsSync(telemetryPath), false);
+});

@@ -13,6 +13,11 @@ import { randomUUID } from "node:crypto";
  * `eventId` so readers can version and dedupe the stream without synthesizing an ID.
  * `beforeTokens`/`afterTokens` are token counts ONLY where the emitting path has them
  * (`null` otherwise — no tokenizer is bundled into harness processes).
+ *
+ * v0.1.0 (2026-08-03): additive `changed` field. `changed: false` marks a recorded
+ * pass-through (an attempted reduction that changed nothing) so `metrics` can report a
+ * pass-through rate — the denominator for deciding which noisy-output classes still need
+ * a reducer. Legacy lines without the field normalize to `changed: true`.
  */
 export const TRIM_EVENT_SCHEMA_VERSION = 1;
 
@@ -31,6 +36,8 @@ export interface TrimEvent {
   reducer: string | null;
   beforeChars: number;
   afterChars: number;
+  /** True when the attempt actually changed the output; false marks a recorded pass-through. */
+  changed: boolean;
   /** Token count before reduction, only when the emitting path has one; else null. */
   beforeTokens: number | null;
   /** Token count after reduction, only when the emitting path has one; else null. */
@@ -40,13 +47,15 @@ export interface TrimEvent {
 /**
  * Build a fully-formed, schema-versioned TrimEvent. Producers should use this instead of
  * hand-rolling the envelope so `schemaVersion`/`eventId` cannot drift between adapters.
- * Token counts default to null (measured only where the emitting path has a tokenizer).
+ * Token counts default to null (measured only where the emitting path has a tokenizer);
+ * `changed` defaults true (reduced) and is set false for recorded pass-throughs.
  */
 export function makeTrimEvent(
-  partial: Omit<TrimEvent, "schemaVersion" | "eventId" | "ts" | "beforeTokens" | "afterTokens"> & {
+  partial: Omit<TrimEvent, "schemaVersion" | "eventId" | "ts" | "beforeTokens" | "afterTokens" | "changed"> & {
     ts?: string;
     beforeTokens?: number | null;
     afterTokens?: number | null;
+    changed?: boolean;
   }
 ): TrimEvent {
   return {
@@ -58,6 +67,7 @@ export function makeTrimEvent(
     reducer: partial.reducer,
     beforeChars: partial.beforeChars,
     afterChars: partial.afterChars,
+    changed: partial.changed ?? true,
     beforeTokens: partial.beforeTokens ?? null,
     afterTokens: partial.afterTokens ?? null,
   };
@@ -71,7 +81,18 @@ export interface ReducerBreakdown {
   savedChars: number;
 }
 
+export interface HarnessBreakdown {
+  harness: string;
+  count: number;
+  beforeChars: number;
+  afterChars: number;
+  savedChars: number;
+  /** Percent reduction over that harness's events, one decimal place (negative when it grew). */
+  reductionPct: number;
+}
+
 export interface TrimSummary {
+  /** Total recorded attempts (reduced + pass-through + errors). */
   events: number;
   beforeChars: number;
   afterChars: number;
@@ -79,6 +100,18 @@ export interface TrimSummary {
   /** Percent reduction over all events, one decimal place. */
   reductionPct: number;
   byReducer: ReducerBreakdown[];
+  /** Per-harness totals, sorted by saved chars descending. */
+  byHarness: HarnessBreakdown[];
+  /** Attempts that actually shrank the output (changed: true and no growth). */
+  reduced: number;
+  /** Attempts that changed nothing (changed: false) — the pass-through denominator. */
+  passThrough: number;
+  /** Percent of recorded attempts that were pass-throughs, one decimal place. */
+  passThroughRate: number;
+  /** Attempts recorded as changed that GROW the output — reducer bugs worth fixing. */
+  reductionErrors: number;
+  /** Total growth in chars across reduction errors. */
+  grewChars: number;
 }
 
 function pct(before: number, after: number): number {
@@ -87,18 +120,43 @@ function pct(before: number, after: number): number {
 }
 
 /**
- * Aggregate a list of TrimEvents into totals and a per-reducer breakdown.
- * Pure and deterministic (independent of event timestamps). Events with a null
- * reducer contribute to totals but not to the per-reducer breakdown.
+ * Aggregate a list of TrimEvents into totals, a per-reducer breakdown, a per-harness
+ * breakdown, and attempt accounting (reduced vs pass-through vs errors). Pure and
+ * deterministic (independent of event timestamps). Events with a null reducer contribute
+ * to totals and the pass-through/error counts but not to the per-reducer breakdown.
  */
 export function summarize(events: TrimEvent[]): TrimSummary {
   let beforeChars = 0;
   let afterChars = 0;
+  let reduced = 0;
+  let passThrough = 0;
+  let reductionErrors = 0;
+  let grewChars = 0;
   const byReducerMap = new Map<string, ReducerBreakdown>();
+  const byHarnessMap = new Map<string, HarnessBreakdown>();
 
   for (const e of events) {
     beforeChars += e.beforeChars;
     afterChars += e.afterChars;
+    if (e.changed === false) {
+      passThrough++;
+    } else if (e.afterChars > e.beforeChars) {
+      reductionErrors++;
+      grewChars += e.afterChars - e.beforeChars;
+    } else {
+      reduced++;
+    }
+
+    const harness = e.harness ?? "unknown";
+    const h =
+      byHarnessMap.get(harness) ??
+      { harness, count: 0, beforeChars: 0, afterChars: 0, savedChars: 0, reductionPct: 0 };
+    h.count += 1;
+    h.beforeChars += e.beforeChars;
+    h.afterChars += e.afterChars;
+    h.savedChars += e.beforeChars - e.afterChars;
+    byHarnessMap.set(harness, h);
+
     if (e.reducer === null) continue;
     const b =
       byReducerMap.get(e.reducer) ??
@@ -111,6 +169,9 @@ export function summarize(events: TrimEvent[]): TrimSummary {
   }
 
   const byReducer = [...byReducerMap.values()].sort((a, b) => b.savedChars - a.savedChars);
+  const byHarness = [...byHarnessMap.values()]
+    .map((h) => ({ ...h, reductionPct: pct(h.beforeChars, h.afterChars) }))
+    .sort((a, b) => b.savedChars - a.savedChars);
 
   return {
     events: events.length,
@@ -119,6 +180,12 @@ export function summarize(events: TrimEvent[]): TrimSummary {
     savedChars: beforeChars - afterChars,
     reductionPct: pct(beforeChars, afterChars),
     byReducer,
+    byHarness,
+    reduced,
+    passThrough,
+    passThroughRate: events.length === 0 ? 0 : Math.round((passThrough / events.length) * 1000) / 10,
+    reductionErrors,
+    grewChars,
   };
 }
 
@@ -167,6 +234,7 @@ function normalize(v: TrimEvent): TrimEvent {
     reducer: v.reducer,
     beforeChars: v.beforeChars,
     afterChars: v.afterChars,
+    changed: typeof v.changed === "boolean" ? v.changed : true,
     beforeTokens: typeof v.beforeTokens === "number" ? v.beforeTokens : null,
     afterTokens: typeof v.afterTokens === "number" ? v.afterTokens : null,
   };

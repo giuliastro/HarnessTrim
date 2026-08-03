@@ -32,6 +32,39 @@ test("loadMetrics aggregates a JSONL file", () => {
   assert.equal(result.summary.events, 2);
   assert.equal(result.summary.savedChars, 1300);
   assert.equal(result.summary.byReducer.length, 2);
+  assert.equal(result.summary.byHarness.length, 1);
+  assert.equal(result.summary.byHarness[0].savedChars, 1300);
+});
+
+test("loadMetrics reports pass-through and per-harness splits", () => {
+  const p = tmpFile(
+    line({ ts: "t1", harness: "opencode", tool: "bash", reducer: "git-diff-slim", beforeChars: 900, afterChars: 200, changed: true }) +
+      "\n" +
+      line({ ts: "t2", harness: "claude", tool: "Bash", reducer: null, beforeChars: 800, afterChars: 800, changed: false }) +
+      "\n" +
+      line({ ts: "t3", harness: "claude", tool: "Bash", reducer: "test-output-slim", beforeChars: 600, afterChars: 300, changed: true }) +
+      "\n"
+  );
+  const result = loadMetrics(p);
+  assert.equal(result.summary.reduced, 2);
+  assert.equal(result.summary.passThrough, 1);
+  assert.equal(result.summary.passThroughRate, 33.3);
+  assert.equal(result.summary.reductionErrors, 0);
+assert.deepEqual(
+    result.summary.byHarness.map((h) => h.harness),
+    ["opencode", "claude"] // sorted by saved chars desc (opencode saved 700, claude 300)
+  );
+  assert.equal(result.summary.byHarness[0].savedChars, 700);
+});
+
+test("loadMetrics reports reduction errors when output grew", () => {
+  const p = tmpFile(
+    line({ harness: "pipe", tool: "reduce", reducer: "test-output-slim", beforeChars: 600, afterChars: 900, changed: true }) + "\n"
+  );
+  const result = loadMetrics(p);
+  assert.equal(result.summary.reductionErrors, 1);
+  assert.equal(result.summary.grewChars, 300);
+  assert.equal(result.summary.reduced, 0);
 });
 
 test("loadMetrics tolerates an empty file", () => {

@@ -4,7 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { reduceAuto, makeTrimEvent, type TrimEvent } from "@harnesstrim/core";
+import { reduceAuto, makeTrimEvent, DEFAULT_MIN_LENGTH, type TrimEvent } from "@harnesstrim/core";
 
 /** Records a reduction as a TrimEvent (or does nothing). */
 export type Sink = (event: TrimEvent) => void;
@@ -31,10 +31,17 @@ export function createFileSink(metricsPath: string): Sink {
  * Pure logic behind the `reduce` MCP tool: slim `text` and return it as tool content.
  * Extracted so it can be unit-tested without an MCP transport. Deterministic and
  * idempotent (inherited from core.reduceAuto), and never grows the input. When a `sink`
- * is provided and a reduction happens, records one TrimEvent.
+ * is provided and a reduction happens, records one TrimEvent; with `trackPassThrough`
+ * (default true) it also records pass-through events for attempted-but-unchanged input.
  */
-export function runReduceTool(text: string, minLength?: number, sink: Sink = noopSink): CallToolResult {
+export function runReduceTool(
+  text: string,
+  minLength?: number,
+  sink: Sink = noopSink,
+  trackPassThrough = true
+): CallToolResult {
   const result = reduceAuto(text, minLength);
+  const threshold = minLength ?? DEFAULT_MIN_LENGTH;
   if (result.changed) {
     sink(
       makeTrimEvent({
@@ -43,6 +50,17 @@ export function runReduceTool(text: string, minLength?: number, sink: Sink = noo
         reducer: result.reducer,
         beforeChars: text.length,
         afterChars: result.output.length,
+      })
+    );
+  } else if (trackPassThrough && text.length >= threshold) {
+    sink(
+      makeTrimEvent({
+        harness: "mcp",
+        tool: "reduce",
+        reducer: null,
+        beforeChars: text.length,
+        afterChars: text.length,
+        changed: false,
       })
     );
   }
@@ -58,11 +76,14 @@ const REDUCE_DESCRIPTION =
 export interface ServerOptions {
   /** Append a TrimEvent JSONL record per reduction to this path (default: no telemetry). */
   metricsPath?: string;
+  /** Record pass-through events too (default true when metricsPath is set). */
+  trackPassThrough?: boolean;
 }
 
 /** Build the HarnessTrim MCP server with the `reduce` tool registered. */
 export function createServer(options: ServerOptions = {}): McpServer {
   const sink = options.metricsPath ? createFileSink(options.metricsPath) : noopSink;
+  const trackPassThrough = options.trackPassThrough !== false;
   const server = new McpServer({ name: "harnesstrim", version: "0.0.1" });
   server.registerTool(
     "reduce",
@@ -77,18 +98,22 @@ export function createServer(options: ServerOptions = {}): McpServer {
           .describe("Skip reduction for inputs shorter than this many characters (default 400)"),
       },
     },
-    async ({ text, minLength }) => runReduceTool(text, minLength, sink)
+    async ({ text, minLength }) => runReduceTool(text, minLength, sink, trackPassThrough)
   );
   return server;
 }
 
 /**
  * Start the server on stdio (used by `harnesstrim mcp`). Pass `metricsPath` (or set
- * `HARNESSTRIM_TELEMETRY_PATH`) to record a TrimEvent per reduction.
+ * `HARNESSTRIM_TELEMETRY_PATH`) to record a TrimEvent per reduction. Pass-through
+ * tracking follows `HARNESSTRIM_TRACK_PASSTHROUGH` (default on).
  */
 export async function startStdioServer(options: ServerOptions = {}): Promise<void> {
   const metricsPath = options.metricsPath ?? process.env.HARNESSTRIM_TELEMETRY_PATH;
-  const server = createServer({ metricsPath });
+  const envTrack = process.env.HARNESSTRIM_TRACK_PASSTHROUGH;
+  const trackPassThrough =
+    options.trackPassThrough ?? (envTrack !== undefined ? envTrack !== "0" && envTrack !== "false" : true);
+  const server = createServer({ metricsPath, trackPassThrough });
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

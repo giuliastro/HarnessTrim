@@ -343,8 +343,12 @@ pnpm exec harnesstrim bench                    # run the Tier A reducer micro-be
   available narrowing flags, and the exact write-set each installer owns.
 - `doctor`, `install`, and `metrics` accept `--json` for machine-readable output (scripts/CI).
 - `reduce` is the pipe-friendly reducer (RTK-style) shared across harnesses.
-- `metrics` aggregates the telemetry the adapter emits (off by default) into chars saved per reducer.
-  Lines carry a schema version and a stable event id.
+- `metrics` aggregates the telemetry the adapter emits (off by default) into totals with
+  **per-reducer** and **per-harness** splits, a **pass-through rate** (attempted-but-unchanged
+  output — the evidence base for adding reducers) and **reduction-error** counts (attempts that grew
+  the output). Pass-throughs are recorded whenever telemetry is on; opt out with
+  `HARNESSTRIM_TRACK_PASSTHROUGH=0`. Lines carry a schema version and a stable event id; only
+  character counts are recorded, never tool payloads.
 
 ## Try it
 

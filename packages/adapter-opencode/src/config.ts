@@ -21,6 +21,12 @@ export interface AdapterConfig {
   telemetry: boolean;
   /** Where telemetry JSONL is appended (relative paths resolve against cwd). */
   telemetryPath: string;
+  /**
+   * Also record pass-through events (attempted reduction, nothing changed) so `metrics`
+   * can report a pass-through rate. On by default whenever telemetry is on; opt out
+   * with `trackPassThrough: false` or `HARNESSTRIM_TRACK_PASSTHROUGH=0|false`.
+   */
+  trackPassThrough: boolean;
 }
 
 export const DEFAULT_TELEMETRY_PATH = ".harnesstrim/metrics.jsonl";
@@ -70,5 +76,10 @@ export function resolveConfig(options: Record<string, unknown> = {}): AdapterCon
     env.HARNESSTRIM_TELEMETRY_PATH ??
     DEFAULT_TELEMETRY_PATH;
 
-  return { mode, minLength, debug, compactionHandoff, toolFilter, telemetry, telemetryPath };
+  const trackPassthroughEnv = env.HARNESSTRIM_TRACK_PASSTHROUGH;
+  const trackPassThrough =
+    options.trackPassThrough !== false &&
+    !(trackPassthroughEnv === "0" || trackPassthroughEnv === "false");
+
+  return { mode, minLength, debug, compactionHandoff, toolFilter, telemetry, telemetryPath, trackPassThrough };
 }
