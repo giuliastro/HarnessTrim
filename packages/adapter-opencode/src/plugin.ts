@@ -40,24 +40,37 @@ export const HarnessTrim: Plugin = async (_input, options) => {
       // confine reduction to exactly those tools.
       if (config.toolFilter && !config.toolFilter.includes(input.tool)) return;
       const result = reduceAuto(output.output, config.minLength);
-      if (!result.changed) return;
-
       const before = output.output.length;
       const after = result.output.length;
-      if (config.mode === "active") {
-        output.output = result.output;
-      }
 
-      sink(
-        makeTrimEvent({
-          harness: HARNESS,
-          tool: input.tool,
-          reducer: result.reducer,
-          beforeChars: before,
-          afterChars: after,
-        })
-      );
-      log(`${config.mode} ${input.tool} via ${result.reducer}: ${before} -> ${after} chars`);
+      if (result.changed) {
+        if (config.mode === "active") {
+          output.output = result.output;
+        }
+        sink(
+          makeTrimEvent({
+            harness: HARNESS,
+            tool: input.tool,
+            reducer: result.reducer,
+            beforeChars: before,
+            afterChars: after,
+          })
+        );
+        log(`${config.mode} ${input.tool} via ${result.reducer}: ${before} -> ${after} chars`);
+      } else if (config.trackPassThrough && before >= config.minLength) {
+        // Attempted but nothing changed: record the pass-through so `metrics` can
+        // report the share of unreduced output (the evidence base for new reducers).
+        sink(
+          makeTrimEvent({
+            harness: HARNESS,
+            tool: input.tool,
+            reducer: null,
+            beforeChars: before,
+            afterChars: before,
+            changed: false,
+          })
+        );
+      }
     },
 
     "experimental.session.compacting": async (_compactInput, output) => {

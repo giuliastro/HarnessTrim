@@ -43,10 +43,17 @@ which is git-ignored — not in this file).
 - `harnesstrim` published: latest **0.0.7** (2026-08-02, PR #8 merged): Pi discovery fix
   (`index.ts`), install-precision narrowing, `--json`/`capabilities`, `uninstall`,
   TrimEvent schema, extended smoke test, AGENTS.md sanitized (machine info → AGENTS.local.md).
+- **In progress (2026-08-03, not yet published):** v0.1.0 — `metrics` depth (per-harness /
+  pass-through rate / reduction-error counts, additive `changed` on TrimEvent), pass-through
+  telemetry on by default when telemetry is on (`HARNESSTRIM_TRACK_PASSTHROUGH=0|false` to opt out),
+  and the release pipeline (`.github/workflows/release.yml`: typecheck/test/bench/smoke +
+  version/tag validation via `scripts/validate-release.mjs`, then npm publish + auto release notes;
+  needs an `npm-publish` environment with `NPM_TOKEN`). CLI version bumped to **0.1.0**; publishing
+  is gated on an explicit tag push.
 - CLI features already present: `doctor`, `install opencode|codex|claude|hermes|pi`,
   `hook claude`, `reduce`, `mcp`, `bench`, `preset list/show`, `metrics`, `--version`,
   `capabilities`, `uninstall`, `--json` on doctor/install/metrics.
 - All five harness adapters exist (opencode/claude/codex/hermes/pi hooks; codex via
   instruction + MCP).
-- CI: `.github/workflows/ci.yml` (typecheck/test/bench on 3 OS + hermes plugin tests).
-  No release/publish job yet — planned (next §9 v0.1.0 item).
+- CI: `.github/workflows/ci.yml` (typecheck/test/bench on 3 OS + hermes plugin tests) and
+  `.github/workflows/release.yml` (tag-triggered publish pipeline, §9 v0.1.0).

@@ -1,4 +1,4 @@
-import { reduceAuto } from "@harnesstrim/core";
+import { reduceAuto, DEFAULT_MIN_LENGTH } from "@harnesstrim/core";
 
 export interface CodexReduction {
   /** Hook-response JSON to write to stdout (`{}` leaves the result untouched). */
@@ -10,6 +10,14 @@ export interface CodexReduction {
     beforeChars: number;
     afterChars: number;
   } | null;
+  /**
+   * Set when the payload parsed and a reduction was ATTEMPTED (output >= min-length)
+   * but nothing changed — lets the hook record pass-through telemetry. Null otherwise.
+   */
+  attempt: {
+    tool: string;
+    beforeChars: number;
+  } | null;
 }
 
 /**
@@ -20,10 +28,19 @@ export interface CodexReduction {
  */
 export function reduceCodexPayload(rawJson: string, minLength?: number): CodexReduction {
   const extracted = extractToolOutput(rawJson);
-  if (extracted === null) return { response: "{}", event: null };
+  if (extracted === null) return { response: "{}", event: null, attempt: null };
 
   const result = reduceAuto(extracted.output, minLength);
-  if (!result.changed) return { response: "{}", event: null };
+  if (!result.changed) {
+    return {
+      response: "{}",
+      event: null,
+      attempt:
+        extracted.output.length >= (minLength ?? DEFAULT_MIN_LENGTH)
+          ? { tool: extracted.toolName, beforeChars: extracted.output.length }
+          : null,
+    };
+  }
 
   const response = JSON.stringify({
     decision: "block",
@@ -37,6 +54,7 @@ export function reduceCodexPayload(rawJson: string, minLength?: number): CodexRe
       beforeChars: extracted.output.length,
       afterChars: result.output.length,
     },
+    attempt: null,
   };
 }
 

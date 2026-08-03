@@ -3,7 +3,7 @@ import { parseArgs } from "node:util";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { getPreset, listPresets, makeTrimEvent } from "@harnesstrim/core";
+import { getPreset, listPresets, makeTrimEvent, DEFAULT_MIN_LENGTH } from "@harnesstrim/core";
 import { inspect } from "./doctor.ts";
 import { runInstallOpencode } from "./install.ts";
 import { runInstallCodex, runInstallCodexGlobalHook } from "./install-codex.ts";
@@ -232,23 +232,43 @@ async function main(argv: string[]): Promise<number> {
         return 1;
       }
       const input = await readStdin();
-      const { response, event } = which === "claude" ? reduceClaudePayload(input) : reduceCodexPayload(input);
+      const { response, event, attempt } =
+        which === "claude" ? reduceClaudePayload(input) : reduceCodexPayload(input);
       process.stdout.write(response);
       // --metrics <path>: append a TrimEvent per reduction, read by `harnesstrim metrics`.
-      if (values.metrics && event) {
+      // Pass-throughs (attempted but unchanged) are recorded too, per HARNESSTRIM_TRACK_PASSTHROUGH
+      // (default on), so the metrics pass-through rate is meaningful.
+      if (values.metrics) {
         try {
           const p = path.resolve(values.metrics);
           fs.mkdirSync(path.dirname(p), { recursive: true });
-          fs.appendFileSync(
-            p,
-            JSON.stringify(
-              makeTrimEvent({
-                ts: new Date().toISOString(),
-                harness: which,
-                ...event,
-              })
-            ) + "\n"
-          );
+          if (event) {
+            fs.appendFileSync(
+              p,
+              JSON.stringify(
+                makeTrimEvent({
+                  ts: new Date().toISOString(),
+                  harness: which,
+                  ...event,
+                })
+              ) + "\n"
+            );
+          } else if (attempt && trackPassThrough()) {
+            fs.appendFileSync(
+              p,
+              JSON.stringify(
+                makeTrimEvent({
+                  ts: new Date().toISOString(),
+                  harness: which,
+                  tool: attempt.tool,
+                  reducer: null,
+                  beforeChars: attempt.beforeChars,
+                  afterChars: attempt.beforeChars,
+                  changed: false,
+                })
+              ) + "\n"
+            );
+          }
         } catch {
           /* telemetry must never break the hook */
         }
@@ -306,23 +326,42 @@ async function main(argv: string[]): Promise<number> {
       const result = reducePipe(input, minLength);
       process.stdout.write(result.output);
       // --metrics <path>: append a TrimEvent per reduction, read by `harnesstrim metrics`.
-      if (values.metrics && result.changed) {
+      // Pass-throughs (attempted but unchanged) are recorded too, per HARNESSTRIM_TRACK_PASSTHROUGH
+      // (default on), so the metrics pass-through rate is meaningful.
+      if (values.metrics) {
         try {
           const p = path.resolve(values.metrics);
           fs.mkdirSync(path.dirname(p), { recursive: true });
-          fs.appendFileSync(
-            p,
-            JSON.stringify(
-              makeTrimEvent({
-                ts: new Date().toISOString(),
-                harness: "pipe",
-                tool: "reduce",
-                reducer: result.reducer,
-                beforeChars: result.beforeChars,
-                afterChars: result.afterChars,
-              })
-            ) + "\n"
-          );
+          if (result.changed) {
+            fs.appendFileSync(
+              p,
+              JSON.stringify(
+                makeTrimEvent({
+                  ts: new Date().toISOString(),
+                  harness: "pipe",
+                  tool: "reduce",
+                  reducer: result.reducer,
+                  beforeChars: result.beforeChars,
+                  afterChars: result.afterChars,
+                })
+              ) + "\n"
+            );
+          } else if (trackPassThrough() && input.length >= (minLength ?? DEFAULT_MIN_LENGTH)) {
+            fs.appendFileSync(
+              p,
+              JSON.stringify(
+                makeTrimEvent({
+                  ts: new Date().toISOString(),
+                  harness: "pipe",
+                  tool: "reduce",
+                  reducer: null,
+                  beforeChars: input.length,
+                  afterChars: input.length,
+                  changed: false,
+                })
+              ) + "\n"
+            );
+          }
         } catch {
           /* telemetry must never break the pipe */
         }
@@ -384,6 +423,15 @@ function splitTools(value: string): string[] {
     .split(",")
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
+}
+
+/**
+ * Whether pass-through (attempted-but-unchanged) events should be recorded alongside
+ * reductions. Reads HARNESSTRIM_TRACK_PASSTHROUGH; default on ("0" or "false" opts out).
+ */
+function trackPassThrough(): boolean {
+  const v = process.env.HARNESSTRIM_TRACK_PASSTHROUGH;
+  return v === undefined || (v !== "0" && v !== "false");
 }
 
 main(process.argv.slice(2))

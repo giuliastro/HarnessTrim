@@ -34,6 +34,29 @@ test("summarize handles empty input", () => {
   assert.equal(s.events, 0);
   assert.equal(s.reductionPct, 0);
   assert.deepEqual(s.byReducer, []);
+  assert.deepEqual(s.byHarness, []);
+  assert.equal(s.passThroughRate, 0);
+});
+
+test("summarize counts pass-throughs, errors, and per-harness totals", () => {
+  const s = summarize([
+    makeTrimEvent({ harness: "opencode", tool: "bash", reducer: "test-output-slim", beforeChars: 1000, afterChars: 300 }),
+    makeTrimEvent({ harness: "opencode", tool: "bash", reducer: null, beforeChars: 800, afterChars: 800, changed: false }),
+    makeTrimEvent({ harness: "claude", tool: "Bash", reducer: "git-diff-slim", beforeChars: 500, afterChars: 100 }),
+    makeTrimEvent({ harness: "pipe", tool: "reduce", reducer: null, beforeChars: 600, afterChars: 900, changed: true }),
+  ]);
+  assert.equal(s.events, 4);
+  assert.equal(s.reduced, 2);
+  assert.equal(s.passThrough, 1);
+  assert.equal(s.passThroughRate, 25);
+  assert.equal(s.reductionErrors, 1);
+  assert.equal(s.grewChars, 300);
+  assert.equal(s.byHarness.length, 3);
+  assert.equal(s.byHarness[0].harness, "opencode");
+  assert.equal(s.byHarness[0].count, 2);
+  assert.equal(s.byHarness[0].savedChars, 700);
+  assert.equal(s.byHarness[2].harness, "pipe");
+  assert.equal(s.byHarness[2].reductionPct, -50);
 });
 
 test("parseTrimEvents skips blank and malformed lines", () => {
@@ -63,7 +86,14 @@ test("makeTrimEvent stamps the schema envelope (version 1, stable eventId, null 
   assert.ok(e.eventId.length > 0);
   assert.equal(e.beforeTokens, null);
   assert.equal(e.afterTokens, null);
+  assert.equal(e.changed, true);
   assert.ok(Number.isFinite(Date.parse(e.ts)));
+});
+
+test("makeTrimEvent records a pass-through with changed: false", () => {
+  const e = makeTrimEvent({ harness: "opencode", tool: "bash", reducer: null, beforeChars: 50, afterChars: 50, changed: false });
+  assert.equal(e.changed, false);
+  assert.equal(e.reducer, null);
 });
 
 test("makeTrimEvent carries token counts when the emitting path provides them", () => {
@@ -95,4 +125,5 @@ test("parseTrimEvents normalizes legacy lines (no schema) to schemaVersion 0 and
   assert.equal(parsed[0].eventId, "");
   assert.equal(parsed[0].beforeTokens, null);
   assert.equal(parsed[0].afterChars, 400);
+  assert.equal(parsed[0].changed, true);
 });
