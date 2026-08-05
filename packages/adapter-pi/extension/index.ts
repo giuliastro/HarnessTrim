@@ -64,23 +64,25 @@ function readBakedConfig(): BakedConfig {
   }
 }
 
-function resolveMode(): string {
-  return env.HARNESSTRIM_MODE ?? readBakedConfig().mode ?? "dryrun";
+function resolveMode(baked: BakedConfig): string {
+  return env.HARNESSTRIM_MODE ?? baked.mode ?? "dryrun";
 }
 
-function resolveMinLength(): number {
-  const baked = readBakedConfig().minLength;
-  const raw = env.HARNESSTRIM_MINLENGTH ?? (baked !== undefined ? String(baked) : "400");
+function resolveMinLength(baked: BakedConfig): number {
+  const raw = env.HARNESSTRIM_MINLENGTH ?? (baked.minLength !== undefined ? String(baked.minLength) : "400");
   return Number(raw) || 400;
 }
 
-function resolveMetricsPath(): string | undefined {
-  return env.HARNESSTRIM_METRICS || readBakedConfig().metrics || undefined;
+function resolveMetricsPath(baked: BakedConfig): string | undefined {
+  return env.HARNESSTRIM_METRICS || baked.metrics || undefined;
 }
 
-const MODE = resolveMode();
-const MIN_LENGTH = resolveMinLength();
-const METRICS_PATH = resolveMetricsPath();
+// Read the baked config once at load: the file cannot change mid-session without a
+// reinstall, and the env vars are the runtime override.
+const BAKED = readBakedConfig();
+const MODE = resolveMode(BAKED);
+const MIN_LENGTH = resolveMinLength(BAKED);
+const METRICS_PATH = resolveMetricsPath(BAKED);
 
 /** True when a text chunk should not be reduced: too short, or already reduced. */
 export function shouldSkip(text: string, minLength: number): boolean {

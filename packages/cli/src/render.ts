@@ -250,7 +250,7 @@ export function renderPiInstall(result: PiInstallResult, apply: boolean): string
   lines.push("");
 
   if (plan.alreadyInstalled && !apply) {
-    lines.push(`Pi extension already installed at ${plan.extensionDest}${" "}(no change).`);
+    lines.push(`Pi extension already installed at ${plan.extensionDest} (no change).`);
   } else {
     lines.push(`Extension -> ${plan.extensionDest}`);
     if (apply) {

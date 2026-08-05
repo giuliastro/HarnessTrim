@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import {
   planOmpInstall,
   resolveOmpConfig,
@@ -11,6 +10,7 @@ import {
   type OmpInstallPlan,
 } from "@harnesstrim/adapter-omp";
 import { resolveOmpHookSourceDir } from "./assets.ts";
+import { scopeOf, ompHooksDir } from "./scope.ts";
 
 export interface OmpInstallResult {
   plan: OmpInstallPlan;
@@ -47,17 +47,19 @@ export function readOmpConfigFile(configPath: string): Partial<OmpAdapterConfig>
  * and bake mode/min-length/metrics into `harnesstrim.json` in the parent hooks dir
  * (outside `post/` so omp's loader never treats it as a hook file). Dry-run by
  * default; refresh-safe, and the baked config survives plain `--apply` re-runs.
+ *
+ * `home` overrides the directory that decides user vs project scope; it exists so tests
+ * can pin a scope, and must stay in sync with what `planOmpUninstall` resolves.
  */
 export function runInstallOmp(
   installDir: string,
   apply: boolean,
-  options: OmpInstallOptions = {}
+  options: OmpInstallOptions = {},
+  home?: string
 ): OmpInstallResult {
   const hookSourceDir = resolveOmpHookSourceDir();
-  const scope = path.resolve(installDir) === path.resolve(os.homedir()) ? "user" : "project";
-  const hooks = scope === "user"
-    ? path.join(installDir, ".omp", "agent", "hooks")
-    : path.join(installDir, ".omp", "hooks");
+  const scope = scopeOf(installDir, home);
+  const hooks = ompHooksDir(installDir, home);
   const hookDest = path.join(hooks, "post", OMP_HOOK_NAME);
   const configPath = path.join(hooks, OMP_CONFIG_NAME);
 

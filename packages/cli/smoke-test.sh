@@ -63,8 +63,10 @@ REDUCED="$(printf '%s\n' "$LINT_WALL" | "$BIN" reduce --metrics "$PROJ/m.jsonl" 
 echo "$REDUCED" | grep -q "harnesstrim:lint-output-slim" || fail "reduce did not run lint-output-slim"
 # The reduce path is a standalone process: its receipt carries exact cl100k token
 # counts (the tokenizer is bundled, unlike in-harness adapters which report null).
-grep -q '"beforeTokens": [0-9]' "$PROJ/m.jsonl" || fail "reduce receipt missing beforeTokens count"
-grep -q '"afterTokens": [0-9]' "$PROJ/m.jsonl" || fail "reduce receipt missing afterTokens count"
+# Receipts are compact JSONL (no space after the colon), unlike the pretty-printed
+# config files asserted further down.
+grep -qE '"beforeTokens":[0-9]+' "$PROJ/m.jsonl" || fail "reduce receipt missing beforeTokens count"
+grep -qE '"afterTokens":[0-9]+' "$PROJ/m.jsonl" || fail "reduce receipt missing afterTokens count"
 # --min-length raises the threshold: a reducible input with a huge threshold passes through.
 REDUCED_HIGH="$(printf '%s\n' "$LINT_WALL" | "$BIN" reduce --min-length 999999 2>/dev/null)" || fail "reduce --min-length exited non-zero"
 echo "$REDUCED_HIGH" | grep -q "harnesstrim:lint-output-slim" && fail "reduce --min-length 999999 should not reduce"
