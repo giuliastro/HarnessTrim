@@ -474,11 +474,16 @@ function parseModeFlag(value: string | undefined): "active" | "dryrun" | "off" |
   return value === "active" || value === "dryrun" || value === "off" ? value : undefined;
 }
 
-/** Parse `--min-length` into a positive finite number; undefined when unset or invalid. */
+/**
+ * Parse `--min-length` into a positive finite number; undefined when unset or invalid.
+ * Zero is rejected rather than accepted: the adapters treat a baked `minLength` of 0 as
+ * absent and fall back to their 400-char default, so baking it would report a threshold
+ * the runtime never honors.
+ */
 function parseLengthFlag(value: string | undefined): number | undefined {
   if (value === undefined) return undefined;
   const n = Number(value);
-  return Number.isFinite(n) && n >= 0 ? n : undefined;
+  return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
 /** Split a comma-separated `--tools` value into trimmed tool names. */

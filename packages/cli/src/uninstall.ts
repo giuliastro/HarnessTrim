@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { HARNESSTRIM_MARKER as CLAUDE_MARKER } from "@harnesstrim/adapter-claude";
 import { HARNESSTRIM_MARKER as CODEX_MARKER } from "@harnesstrim/adapter-codex";
 import { OMP_HOOK_NAME, OMP_CONFIG_NAME, OMP_HOOK_MARKER } from "@harnesstrim/adapter-omp";
@@ -37,6 +38,19 @@ export interface UninstallPlan {
 
 export interface UninstallResult extends UninstallPlan {
   applied: boolean;
+}
+
+/**
+ * Which scope an uninstall targets: `user` when `dir` is the user's home directory,
+ * `project` otherwise. Must resolve the home directory exactly like the installers do
+ * (`os.homedir()`) — `process.env.HOME` is unset on Windows outside a POSIX shell, and
+ * `path.resolve("")` then collapses to the cwd, which flips the scope both ways: a
+ * default `uninstall omp` (dir = home) looks for a project layout, and an explicit
+ * `uninstall omp .` looks for a user layout. Either way nothing is found and the
+ * installed adapter silently survives.
+ */
+function scopeOf(dir: string): "user" | "project" {
+  return path.resolve(dir) === path.resolve(os.homedir()) ? "user" : "project";
 }
 
 function readOrNull(p: string): string | null {
@@ -249,7 +263,7 @@ export function planHermesUninstall(dir: string): UninstallPlan {
 }
 
 export function planPiUninstall(dir: string): UninstallPlan {
-  const scope = path.resolve(dir) === path.resolve(process.env.HOME ?? "") ? "user" : "project";
+  const scope = scopeOf(dir);
   const dest =
     scope === "user"
       ? path.join(dir, ".pi", "agent", "extensions", "harnesstrim")
@@ -262,7 +276,7 @@ export function planPiUninstall(dir: string): UninstallPlan {
 }
 
 export function planOmpUninstall(dir: string): UninstallPlan {
-  const scope = path.resolve(dir) === path.resolve(process.env.HOME ?? "") ? "user" : "project";
+  const scope = scopeOf(dir);
   const hooks =
     scope === "user"
       ? path.join(dir, ".omp", "agent", "hooks")

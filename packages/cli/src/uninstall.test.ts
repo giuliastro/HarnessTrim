@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { planUninstall, runUninstall } from "./uninstall.ts";
+import { runInstallOmp } from "./install-omp.ts";
 import { resolveSkillsSourceDir } from "./skills-source.ts";
 
 function tmpProject(): string {
@@ -138,6 +139,51 @@ test("hermes uninstall removes the plugin dir only when the marker is present", 
   assert.equal(planUninstall("hermes", dir).changed, true);
   runUninstall("hermes", dir, true);
   assert.equal(fs.existsSync(pluginDest), false);
+});
+
+/**
+ * Run `fn` with `process.env.HOME` pointing somewhere other than the real home. This is
+ * the Windows-outside-a-POSIX-shell condition (HOME unset, so `path.resolve("")` collapses
+ * to the cwd) reproduced deterministically: scope detection must follow `os.homedir()`,
+ * not HOME, or it picks the wrong layout and the uninstall silently finds nothing.
+ */
+function withMisleadingHome<T>(home: string, fn: () => T): T {
+  const previous = process.env.HOME;
+  process.env.HOME = home;
+  try {
+    return fn();
+  } finally {
+    if (previous === undefined) delete process.env.HOME;
+    else process.env.HOME = previous;
+  }
+}
+
+test("omp uninstall resolves the project layout regardless of HOME", () => {
+  const dir = tmpProject();
+  runInstallOmp(dir, true);
+  const hookPath = path.join(dir, ".omp", "hooks", "post", "harnesstrim.ts");
+  assert.equal(fs.existsSync(hookPath), true);
+
+  // HOME === dir would make dir look like the user's home and select the
+  // ~/.omp/agent/hooks/ layout, which a project install never writes.
+  const plan = withMisleadingHome(dir, () => planUninstall("omp", dir));
+  assert.equal(plan.changed, true);
+  assert.ok(plan.actions.some((a) => a.path === hookPath));
+
+  withMisleadingHome(dir, () => runUninstall("omp", dir, true));
+  assert.equal(fs.existsSync(hookPath), false);
+  assert.equal(fs.existsSync(path.join(dir, ".omp", "hooks", "harnesstrim.json")), false);
+});
+
+test("pi uninstall resolves the project layout regardless of HOME", () => {
+  const dir = tmpProject();
+  const dest = path.join(dir, ".pi", "extensions", "harnesstrim");
+  fs.mkdirSync(dest, { recursive: true });
+  fs.writeFileSync(path.join(dest, ".installed"), "# harnesstrim:pi-extension");
+
+  const plan = withMisleadingHome(dir, () => planUninstall("pi", dir));
+  assert.equal(plan.changed, true);
+  assert.ok(plan.actions.some((a) => a.path === dest));
 });
 
 test("unknown uninstall target throws", () => {
