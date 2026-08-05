@@ -38,3 +38,8 @@ export function resolveHermesPluginSourceDir(): string {
 export function resolvePiExtensionSourceDir(): string {
   return resolveAssetDir(path.join("adapter-pi", "extension"), path.join("packages", "adapter-pi", "extension"));
 }
+
+/** The shipped OMP hook bundle (harnesstrim.ts, a hooks/post factory). */
+export function resolveOmpHookSourceDir(): string {
+  return resolveAssetDir(path.join("adapter-omp", "hook"), path.join("packages", "adapter-omp", "hook"));
+}

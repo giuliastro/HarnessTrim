@@ -24,6 +24,47 @@ import path from "node:path";
 export const HERMES_PLUGIN_NAME = "harnesstrim";
 export const HERMES_PLUGIN_MARKER = "harnesstrim:plugin-ready";
 
+/**
+ * Config baked into `config.json` beside the plugin. The plugin reads env first
+ * (HARNESSTRIM_MODE / HARNESSTRIM_MINLENGTH still win at runtime — a user override
+ * beats the installed state), then this file, then its built-in defaults.
+ */
+export interface HermesAdapterConfig {
+  /** `active` reduces in place; `dryrun` logs only; `off` disables. */
+  mode: "active" | "dryrun" | "off";
+  /** Tool outputs shorter than this (chars) are left untouched. */
+  minLength: number;
+}
+
+/** The config `install hermes` writes when no options are given (plugin's own default). */
+export const DEFAULT_HERMES_ADAPTER_CONFIG: HermesAdapterConfig = { mode: "dryrun", minLength: 400 };
+
+/** True when the value looks like a known plugin mode. */
+export function isHermesMode(v: unknown): v is HermesAdapterConfig["mode"] {
+  return v === "active" || v === "dryrun" || v === "off";
+}
+
+/** Merge explicit overrides over an existing/parsed config, keeping the rest. */
+export function resolveHermesConfig(
+  existing: Partial<HermesAdapterConfig> | null,
+  overrides: { mode?: HermesAdapterConfig["mode"]; minLength?: number } = {}
+): HermesAdapterConfig {
+  const base = existing ?? DEFAULT_HERMES_ADAPTER_CONFIG;
+  return {
+    mode: overrides.mode ?? (isHermesMode(base.mode) ? base.mode : DEFAULT_HERMES_ADAPTER_CONFIG.mode),
+    minLength:
+      overrides.minLength ??
+      (typeof base.minLength === "number" && base.minLength > 0
+        ? base.minLength
+        : DEFAULT_HERMES_ADAPTER_CONFIG.minLength),
+  };
+}
+
+/** Deterministic, sorted-key JSON for the config file (also used for digests). */
+export function bakeHermesConfig(config: HermesAdapterConfig): string {
+  return JSON.stringify({ mode: config.mode, minLength: config.minLength }, null, 2) + "\n";
+}
+
 export interface SkillCopy {
   name: string;
   from: string;

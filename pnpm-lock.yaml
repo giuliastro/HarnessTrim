@@ -45,6 +45,8 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/adapter-omp: {}
+
   packages/adapter-opencode:
     devDependencies:
       '@harnesstrim/core':
@@ -70,6 +72,9 @@ importers:
       '@harnesstrim/adapter-hermes':
         specifier: workspace:*
         version: link:../adapter-hermes
+      '@harnesstrim/adapter-omp':
+        specifier: workspace:*
+        version: link:../adapter-omp
       '@harnesstrim/adapter-pi':
         specifier: workspace:*
         version: link:../adapter-pi
@@ -85,6 +90,9 @@ importers:
       esbuild:
         specifier: ^0.25.0
         version: 0.25.12
+      js-tiktoken:
+        specifier: ^1.0.15
+        version: 1.0.21
 
   packages/core: {}
 

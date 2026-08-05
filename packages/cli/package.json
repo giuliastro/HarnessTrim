@@ -18,11 +18,13 @@
     "@harnesstrim/adapter-claude": "workspace:*",
     "@harnesstrim/adapter-codex": "workspace:*",
     "@harnesstrim/adapter-hermes": "workspace:*",
+    "@harnesstrim/adapter-omp": "workspace:*",
     "@harnesstrim/adapter-pi": "workspace:*",
     "@harnesstrim/benchmarks": "workspace:*",
     "@harnesstrim/core": "workspace:*",
     "@harnesstrim/mcp": "workspace:*",
-    "esbuild": "^0.25.0"
+    "esbuild": "^0.25.0",
+    "js-tiktoken": "^1.0.15"
   },
   "scripts": {
     "build": "node build.mjs",

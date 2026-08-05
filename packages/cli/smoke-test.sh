@@ -61,14 +61,18 @@ LINT_WALL="$LINT_WALL
   0 errors"
 REDUCED="$(printf '%s\n' "$LINT_WALL" | "$BIN" reduce --metrics "$PROJ/m.jsonl" 2>/dev/null)" || fail "reduce exited non-zero"
 echo "$REDUCED" | grep -q "harnesstrim:lint-output-slim" || fail "reduce did not run lint-output-slim"
+# The reduce path is a standalone process: its receipt carries exact cl100k token
+# counts (the tokenizer is bundled, unlike in-harness adapters which report null).
+grep -q '"beforeTokens": [0-9]' "$PROJ/m.jsonl" || fail "reduce receipt missing beforeTokens count"
+grep -q '"afterTokens": [0-9]' "$PROJ/m.jsonl" || fail "reduce receipt missing afterTokens count"
 # --min-length raises the threshold: a reducible input with a huge threshold passes through.
 REDUCED_HIGH="$(printf '%s\n' "$LINT_WALL" | "$BIN" reduce --min-length 999999 2>/dev/null)" || fail "reduce --min-length exited non-zero"
 echo "$REDUCED_HIGH" | grep -q "harnesstrim:lint-output-slim" && fail "reduce --min-length 999999 should not reduce"
 [ "$REDUCED_HIGH" = "$LINT_WALL" ] || fail "reduce --min-length 999999 changed the input"
 
 # 6. Every installer runs dry-run then --apply from a clean dir, using the
-#    shipped assets (skills / hermes plugin / pi extension).
-for t in opencode codex claude hermes pi; do
+#    shipped assets (skills / hermes plugin / pi extension / omp hook).
+for t in opencode codex claude hermes pi omp; do
   "$BIN" install "$t" "$D" >/dev/null 2>&1 || fail "install $t (dry-run)"
   "$BIN" install "$t" "$D" --apply >/dev/null 2>&1 || fail "install $t --apply"
   # Second --apply must be idempotent (no error).
@@ -79,8 +83,10 @@ done
 [ -d "$D/.claude/skills" ] || fail "claude skills not written"
 [ -d "$D/.pi/extensions/harnesstrim" ] || fail "pi extension not written"
 [ -d "$D/.hermes" ] || fail "hermes plugin not written"
+[ -d "$D/.omp/hooks/post" ] || fail "omp hook not written"
+[ -f "$D/.omp/hooks/harnesstrim.json" ] || fail "omp baked config not written"
 SKILLS="$("$BIN" preset list 2>/dev/null | head -1)" # sanity: presets resolve
-echo "== smoke: installers applied (opencode/codex/claude/hermes/pi), assets present =="
+echo "== smoke: installers applied (opencode/codex/claude/hermes/pi/omp), assets present =="
 
 # 6a. Narrowed installs write only what they promise.
 ND="$PROJ/narrowed"
@@ -97,12 +103,32 @@ grep -q '"minLength": 2000' "$ND/.opencode/plugin/harnesstrim.ts" || fail "openc
 grep -q '"toolFilter"' "$ND/.opencode/plugin/harnesstrim.ts" || fail "opencode wrapper missing toolFilter"
 grep -q '"bash"' "$ND/.opencode/plugin/harnesstrim.ts" || fail "opencode wrapper missing bash in toolFilter"
 
-# 6b. capabilities is valid JSON and names all five harnesses.
+# 6a2. hermes / pi / omp bake --mode + --min-length into their config.json, and the
+#      baked config survives a plain re-`--apply` (state preservation).
+HDP="$PROJ/hdp"
+mkdir -p "$HDP"
+"$BIN" install hermes "$HDP" --mode active --min-length 800 --apply >/dev/null 2>&1 || fail "install hermes --mode/--min-length --apply"
+grep -q '"mode": "active"' "$HDP/.hermes/plugins/harnesstrim/config.json" || fail "hermes config missing mode active"
+grep -q '"minLength": 800' "$HDP/.hermes/plugins/harnesstrim/config.json" || fail "hermes config missing minLength 800"
+"$BIN" install hermes "$HDP" --apply >/dev/null 2>&1 || fail "install hermes (2nd, idempotency)"
+grep -q '"mode": "active"' "$HDP/.hermes/plugins/harnesstrim/config.json" || fail "hermes re-apply reset the baked mode"
+PDP="$PROJ/pdp"
+mkdir -p "$PDP"
+"$BIN" install pi "$PDP" --mode active --min-length 500 --metrics "$PDP/m.jsonl" --apply >/dev/null 2>&1 || fail "install pi --mode/--min-length/--metrics --apply"
+grep -q '"metrics"' "$PDP/.pi/extensions/harnesstrim/config.json" || fail "pi config missing baked metrics path"
+ODP="$PROJ/odp"
+mkdir -p "$ODP"
+"$BIN" install omp "$ODP" --mode active --min-length 300 --metrics "$ODP/m.jsonl" --apply >/dev/null 2>&1 || fail "install omp --mode/--min-length/--metrics --apply"
+grep -q '"minLength": 300' "$ODP/.omp/hooks/harnesstrim.json" || fail "omp config missing minLength 300"
+
+# 6b. capabilities is valid JSON, names all six harnesses, and carries digests.
 CAPS="$(node -e "JSON.parse(require('fs').readFileSync(0,'utf8'))" <<< "$("$BIN" capabilities 2>/dev/null)" && echo ok)" || fail "capabilities did not emit valid JSON"
 [ "$CAPS" = "ok" ] || fail "capabilities invalid JSON"
-for h in opencode codex claude hermes pi; do
+for h in opencode codex claude hermes pi omp; do
   "$BIN" capabilities 2>/dev/null | grep -q "\"$h\"" || fail "capabilities missing harness $h"
 done
+"$BIN" capabilities 2>/dev/null | grep -q '"digests"' || fail "capabilities missing digests"
+FLAT_SHA="$(node -e "const c=JSON.parse(require('fs').readFileSync(0,'utf8'));for(const d of Object.values(c.digests))for(const v of Object.values(d))if(!/^[0-9a-f]{64}$/.test(v))process.exit(1)" <<< "$("$BIN" capabilities 2>/dev/null)")" || fail "capabilities digest values are not sha256 hex"
 
 # 6c. --json works for doctor / install / metrics (one JSON object on stdout).
 node -e "JSON.parse(require('fs').readFileSync(0,'utf8'))" <<< "$("$BIN" doctor "$D" --json 2>/dev/null)" || fail "doctor --json invalid"
@@ -117,7 +143,11 @@ node -e "JSON.parse(require('fs').readFileSync(0,'utf8'))" <<< "$("$BIN" install
 [ -d "$D/.opencode/plugin" ] && fail "uninstall opencode --apply left the wrapper"
 "$BIN" uninstall claude "$D" --apply >/dev/null 2>&1 || fail "uninstall claude --apply"
 [ -d "$D/.claude/skills" ] && fail "uninstall claude --apply left skills"
-echo "== smoke: capabilities + --json + narrowing + uninstall verified =="
+"$BIN" uninstall omp "$D" >/dev/null 2>&1 || fail "uninstall omp (dry-run)"
+[ -f "$D/.omp/hooks/post/harnesstrim.ts" ] || fail "uninstall omp dry-run removed files without --apply"
+"$BIN" uninstall omp "$D" --apply >/dev/null 2>&1 || fail "uninstall omp --apply"
+[ -f "$D/.omp/hooks/post/harnesstrim.ts" ] && fail "uninstall omp --apply left the hook"
+echo "== smoke: capabilities + digests + --json + narrowing + uninstall verified =="
 
 # 7. mcp stdio handshake exposes the reduce tool.
 MCP_OUT="$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}\n' | timeout 10 "$BIN" mcp 2>/dev/null)" || fail "mcp initialize"

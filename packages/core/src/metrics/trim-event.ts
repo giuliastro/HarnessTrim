@@ -14,6 +14,11 @@ import { randomUUID } from "node:crypto";
  * `beforeTokens`/`afterTokens` are token counts ONLY where the emitting path has them
  * (`null` otherwise — no tokenizer is bundled into harness processes).
  *
+ * Token-count emitting paths (2026-08-04): the `reduce` pipe and the MCP server run as
+ * SEPARATE processes from any harness, so they bundle a cl100k tokenizer and report
+ * exact before/after tokens. In-harness emitters (OpenCode adapter, Claude/Codex hooks,
+ * Hermes/Pi/OMP plugins) keep measuring chars only and report `null` tokens.
+ *
  * v0.1.0 (2026-08-03): additive `changed` field. `changed: false` marks a recorded
  * pass-through (an attempted reduction that changed nothing) so `metrics` can report a
  * pass-through rate — the denominator for deciding which noisy-output classes still need

@@ -38,6 +38,25 @@ test("runReduceTool records a TrimEvent via the sink only when it reduces", () =
   assert.ok(e.afterChars < e.beforeChars);
 });
 
+test("runReduceTool reports exact token counts when a counter is provided", () => {
+  const events: Array<{ beforeTokens: number | null; afterTokens: number | null }> = [];
+  const sink = (e: unknown) => events.push(e as { beforeTokens: number | null; afterTokens: number | null });
+  const count = (s: string) => Math.ceil(s.length / 4);
+  runReduceTool(noisy, undefined, sink as never, true, count);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].beforeTokens, count(noisy));
+  assert.equal(events[0].afterTokens, count(textOf(runReduceTool(noisy, undefined, undefined, undefined, count).content)));
+});
+
+test("runReduceTool omits token counts without a counter (null, not fabricated)", () => {
+  const events: Array<{ beforeTokens: number | null; afterTokens: number | null }> = [];
+  const sink = (e: unknown) => events.push(e as { beforeTokens: number | null; afterTokens: number | null });
+  runReduceTool(noisy, undefined, sink as never);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].beforeTokens, null);
+  assert.equal(events[0].afterTokens, null);
+});
+
 test("MCP end-to-end: client lists and calls the reduce tool", async () => {
   const server = createServer();
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

@@ -10,6 +10,8 @@ import { runInstallCodex, runInstallCodexGlobalHook } from "./install-codex.ts";
 import { runInstallClaude } from "./install-claude.ts";
 import { runInstallPi } from "./install-pi.ts";
 import { runInstallHermes } from "./install-hermes.ts";
+import { runInstallOmp } from "./install-omp.ts";
+import { countTokens } from "./tokens.ts";
 import { reduceClaudePayload } from "@harnesstrim/adapter-claude";
 import { reduceCodexPayload } from "@harnesstrim/adapter-codex";
 import { loadMetrics, DEFAULT_METRICS_PATH } from "./metrics.ts";
@@ -26,6 +28,7 @@ import {
   renderClaudeInstall,
   renderHermesInstall,
   renderPiInstall,
+  renderOmpInstall,
   renderMetrics,
   renderPresetList,
   renderPresetShow,
@@ -39,6 +42,7 @@ import {
   claudeInstallJson,
   hermesInstallJson,
   piInstallJson,
+  ompInstallJson,
   codexGlobalHookJson,
 } from "./json.ts";
 
@@ -63,8 +67,18 @@ Usage:
                             --no-instructions  Skills only (no CLAUDE.md reduce-pipe instruction)
   harnesstrim install hermes [dir]         Install Hermes plugin (dry-run)
                             --apply         Actually write the change
+                            --mode <m>      Bake mode: active|dryrun|off (env still wins)
+                            --min-length <n> Bake the min threshold (chars)
   harnesstrim install pi [dir]             Install Pi tool_result extension (dry-run)
                             --apply         Actually write the change
+                            --mode <m>      Bake mode: active|dryrun|off (env still wins)
+                            --min-length <n> Bake the min threshold (chars)
+                            --metrics <p>   Record a TrimEvent JSONL receipt per reduction
+  harnesstrim install omp [dir]            Install OMP tool_result hook (dry-run)
+                            --apply         Actually write the change
+                            --mode <m>      Bake mode: active|dryrun|off (env still wins)
+                            --min-length <n> Bake the min threshold (chars)
+                            --metrics <p>   Record a TrimEvent JSONL receipt per reduction
   harnesstrim uninstall <harness> [dir]    Remove only what install wrote (dry-run)
                             --apply         Actually write the change
   harnesstrim capabilities                 Print machine-readable per-harness capabilities (JSON)
@@ -139,10 +153,10 @@ async function main(argv: string[]): Promise<number> {
     }
     case "install": {
       const target = rest[0];
-      // Hermes uses the user-level Hermes home by default; other adapters keep
+      // Hermes and OMP use their user-level home by default; other adapters keep
       // their project-directory default. Pass an explicit directory for a
       // project-local or alternate-profile installation.
-      const dir = rest[1] ?? (target === "hermes" ? os.homedir() : process.cwd());
+      const dir = rest[1] ?? (target === "hermes" || target === "omp" ? os.homedir() : process.cwd());
       const apply = values.apply === true;
       const asJson = values.json === true;
       if (target === "opencode") {
@@ -190,23 +204,59 @@ async function main(argv: string[]): Promise<number> {
         return 0;
       }
       if (target === "hermes") {
-        const result = runInstallHermes(dir, apply);
+        const mode = parseModeFlag(values.mode);
+        if (mode === undefined && values.mode !== undefined) {
+          console.error(`Invalid --mode: ${values.mode} (expected active, dryrun, or off).`);
+          return 1;
+        }
+        const minLength = parseLengthFlag(values["min-length"]);
+        if (minLength === undefined && values["min-length"] !== undefined) {
+          console.error(`Invalid --min-length: ${values["min-length"]}`);
+          return 1;
+        }
+        const result = runInstallHermes(dir, apply, { mode, minLength });
         if (asJson) console.log(JSON.stringify(hermesInstallJson(result, apply), null, 2));
         else console.log(renderHermesInstall(result, apply));
         return 0;
       }
       if (target === "pi") {
-        const result = runInstallPi(dir, apply);
+        const mode = parseModeFlag(values.mode);
+        if (mode === undefined && values.mode !== undefined) {
+          console.error(`Invalid --mode: ${values.mode} (expected active, dryrun, or off).`);
+          return 1;
+        }
+        const minLength = parseLengthFlag(values["min-length"]);
+        if (minLength === undefined && values["min-length"] !== undefined) {
+          console.error(`Invalid --min-length: ${values["min-length"]}`);
+          return 1;
+        }
+        const result = runInstallPi(dir, apply, { mode, minLength, metrics: values.metrics });
         if (asJson) console.log(JSON.stringify(piInstallJson(result, apply), null, 2));
         else console.log(renderPiInstall(result, apply));
         return 0;
       }
-      console.error(`Unknown install target: ${target ?? "(none)"}. Supported: opencode, codex, claude, hermes, pi.`);
+      if (target === "omp") {
+        const mode = parseModeFlag(values.mode);
+        if (mode === undefined && values.mode !== undefined) {
+          console.error(`Invalid --mode: ${values.mode} (expected active, dryrun, or off).`);
+          return 1;
+        }
+        const minLength = parseLengthFlag(values["min-length"]);
+        if (minLength === undefined && values["min-length"] !== undefined) {
+          console.error(`Invalid --min-length: ${values["min-length"]}`);
+          return 1;
+        }
+        const result = runInstallOmp(dir, apply, { mode, minLength, metrics: values.metrics });
+        if (asJson) console.log(JSON.stringify(ompInstallJson(result, apply), null, 2));
+        else console.log(renderOmpInstall(result, apply));
+        return 0;
+      }
+      console.error(`Unknown install target: ${target ?? "(none)"}. Supported: opencode, codex, claude, hermes, pi, omp.`);
       return 1;
     }
     case "uninstall": {
       const target = rest[0];
-      const dir = rest[1] ?? (target === "hermes" ? os.homedir() : process.cwd());
+      const dir = rest[1] ?? (target === "hermes" || target === "omp" ? os.homedir() : process.cwd());
       const apply = values.apply === true;
       try {
         const result = runUninstall(target, dir, apply);
@@ -327,7 +377,8 @@ async function main(argv: string[]): Promise<number> {
       process.stdout.write(result.output);
       // --metrics <path>: append a TrimEvent per reduction, read by `harnesstrim metrics`.
       // Pass-throughs (attempted but unchanged) are recorded too, per HARNESSTRIM_TRACK_PASSTHROUGH
-      // (default on), so the metrics pass-through rate is meaningful.
+      // (default on), so the metrics pass-through rate is meaningful. This path is a standalone
+      // process (not inside a harness), so it also reports exact token counts (see tokens.ts).
       if (values.metrics) {
         try {
           const p = path.resolve(values.metrics);
@@ -343,6 +394,8 @@ async function main(argv: string[]): Promise<number> {
                   reducer: result.reducer,
                   beforeChars: result.beforeChars,
                   afterChars: result.afterChars,
+                  beforeTokens: countTokens(input),
+                  afterTokens: countTokens(result.output),
                 })
               ) + "\n"
             );
@@ -358,6 +411,8 @@ async function main(argv: string[]): Promise<number> {
                   beforeChars: input.length,
                   afterChars: input.length,
                   changed: false,
+                  beforeTokens: countTokens(input),
+                  afterTokens: countTokens(input),
                 })
               ) + "\n"
             );
@@ -377,7 +432,9 @@ async function main(argv: string[]): Promise<number> {
     case "mcp": {
       const { startStdioServer } = await import("@harnesstrim/mcp");
       // --metrics <path> records a TrimEvent per reduction (read with `harnesstrim metrics`).
-      await startStdioServer(values.metrics ? { metricsPath: values.metrics } : {});
+      // The MCP server is a standalone process (unlike harness adapters), so token counts
+      // are passed in for exact before/after token reporting (see tokens.ts).
+      await startStdioServer(values.metrics ? { metricsPath: values.metrics, countTokens } : { countTokens });
       // startStdioServer resolves once connected; keep the process alive for stdio.
       await new Promise<never>(() => {});
       return 0;
@@ -415,6 +472,13 @@ async function main(argv: string[]): Promise<number> {
 /** Parse `--mode` into the adapter's Mode union; undefined when unset or invalid. */
 function parseModeFlag(value: string | undefined): "active" | "dryrun" | "off" | undefined {
   return value === "active" || value === "dryrun" || value === "off" ? value : undefined;
+}
+
+/** Parse `--min-length` into a positive finite number; undefined when unset or invalid. */
+function parseLengthFlag(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : undefined;
 }
 
 /** Split a comma-separated `--tools` value into trimmed tool names. */

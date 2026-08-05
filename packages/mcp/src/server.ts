@@ -10,6 +10,9 @@ import { reduceAuto, makeTrimEvent, DEFAULT_MIN_LENGTH, type TrimEvent } from "@
 export type Sink = (event: TrimEvent) => void;
 const noopSink: Sink = () => {};
 
+/** Counts tokens of a text; who provides it decides whether it may run here. */
+export type TokenCounter = (text: string) => number;
+
 /**
  * Append TrimEvents as JSONL to `metricsPath`. Best-effort: write failures are swallowed
  * so telemetry can never break the MCP tool. Must never write to stdout (reserved for the
@@ -33,12 +36,15 @@ export function createFileSink(metricsPath: string): Sink {
  * idempotent (inherited from core.reduceAuto), and never grows the input. When a `sink`
  * is provided and a reduction happens, records one TrimEvent; with `trackPassThrough`
  * (default true) it also records pass-through events for attempted-but-unchanged input.
+ * The MCP server is a standalone process (not inside a harness), so when `countTokens`
+ * is provided the events also carry exact before/after token counts.
  */
 export function runReduceTool(
   text: string,
   minLength?: number,
   sink: Sink = noopSink,
-  trackPassThrough = true
+  trackPassThrough = true,
+  countTokens?: TokenCounter
 ): CallToolResult {
   const result = reduceAuto(text, minLength);
   const threshold = minLength ?? DEFAULT_MIN_LENGTH;
@@ -50,6 +56,8 @@ export function runReduceTool(
         reducer: result.reducer,
         beforeChars: text.length,
         afterChars: result.output.length,
+        beforeTokens: countTokens ? countTokens(text) : undefined,
+        afterTokens: countTokens ? countTokens(result.output) : undefined,
       })
     );
   } else if (trackPassThrough && text.length >= threshold) {
@@ -61,6 +69,8 @@ export function runReduceTool(
         beforeChars: text.length,
         afterChars: text.length,
         changed: false,
+        beforeTokens: countTokens ? countTokens(text) : undefined,
+        afterTokens: countTokens ? countTokens(text) : undefined,
       })
     );
   }
@@ -78,6 +88,12 @@ export interface ServerOptions {
   metricsPath?: string;
   /** Record pass-through events too (default true when metricsPath is set). */
   trackPassThrough?: boolean;
+  /**
+   * Token counter for before/after token counts on emitted events. The MCP server
+   * runs OUTSIDE harness processes, so the CLI injects its cl100k tokenizer here;
+   * without it events report chars only (beforeTokens/afterTokens null).
+   */
+  countTokens?: TokenCounter;
 }
 
 /** Build the HarnessTrim MCP server with the `reduce` tool registered. */
@@ -98,7 +114,7 @@ export function createServer(options: ServerOptions = {}): McpServer {
           .describe("Skip reduction for inputs shorter than this many characters (default 400)"),
       },
     },
-    async ({ text, minLength }) => runReduceTool(text, minLength, sink, trackPassThrough)
+    async ({ text, minLength }) => runReduceTool(text, minLength, sink, trackPassThrough, options.countTokens)
   );
   return server;
 }
@@ -113,7 +129,7 @@ export async function startStdioServer(options: ServerOptions = {}): Promise<voi
   const envTrack = process.env.HARNESSTRIM_TRACK_PASSTHROUGH;
   const trackPassThrough =
     options.trackPassThrough ?? (envTrack !== undefined ? envTrack !== "0" && envTrack !== "false" : true);
-  const server = createServer({ metricsPath, trackPassThrough });
+  const server = createServer({ metricsPath, trackPassThrough, countTokens: options.countTokens });
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

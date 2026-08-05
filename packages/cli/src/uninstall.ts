@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { HARNESSTRIM_MARKER as CLAUDE_MARKER } from "@harnesstrim/adapter-claude";
 import { HARNESSTRIM_MARKER as CODEX_MARKER } from "@harnesstrim/adapter-codex";
+import { OMP_HOOK_NAME, OMP_CONFIG_NAME, OMP_HOOK_MARKER } from "@harnesstrim/adapter-omp";
 import { OPENCODE_PLUGIN_NAME } from "./install.ts";
 import { listShippedSkills, resolveSkillsSourceDir } from "./skills-source.ts";
 
@@ -16,6 +17,7 @@ import { listShippedSkills, resolveSkillsSourceDir } from "./skills-source.ts";
  *    when our dependency was its only content).
  *  - hermes: the plugin dir (only when the .installed marker is present).
  *  - pi: the extension dir (only when the .installed marker is present).
+ *  - omp: the hook file (only when it carries our marker) + the baked config file.
  */
 
 export interface UninstallAction {
@@ -259,6 +261,33 @@ export function planPiUninstall(dir: string): UninstallPlan {
   return { harness: "pi", dir, changed: actions.length > 0, actions };
 }
 
+export function planOmpUninstall(dir: string): UninstallPlan {
+  const scope = path.resolve(dir) === path.resolve(process.env.HOME ?? "") ? "user" : "project";
+  const hooks =
+    scope === "user"
+      ? path.join(dir, ".omp", "agent", "hooks")
+      : path.join(dir, ".omp", "hooks");
+  const actions: UninstallAction[] = [];
+
+  const hookPath = path.join(hooks, "post", OMP_HOOK_NAME);
+  const hookContent = readOrNull(hookPath);
+  // Only a hook file carrying our marker is provably ours — never remove a same-named
+  // file the user (or another tool) wrote independently in the shared hooks dir.
+  if (hookContent !== null && hookContent.includes(OMP_HOOK_MARKER)) {
+    actions.push({ type: "remove-file", path: hookPath, note: "OMP tool_result hook installed by HarnessTrim" });
+  }
+
+  const configPath = path.join(hooks, OMP_CONFIG_NAME);
+  if (readOrNull(configPath) !== null) {
+    actions.push({
+      type: "remove-file",
+      path: configPath,
+      note: "baked harnesstrim.json (mode/min-length/metrics) installed by HarnessTrim",
+    });
+  }
+  return { harness: "omp", dir, changed: actions.length > 0, actions };
+}
+
 export function planUninstall(harness: string, dir: string): UninstallPlan {
   switch (harness) {
     case "claude":
@@ -271,8 +300,10 @@ export function planUninstall(harness: string, dir: string): UninstallPlan {
       return planHermesUninstall(dir);
     case "pi":
       return planPiUninstall(dir);
+    case "omp":
+      return planOmpUninstall(dir);
     default:
-      throw new Error(`Unknown uninstall target: ${harness}. Supported: opencode, codex, claude, hermes, pi.`);
+      throw new Error(`Unknown uninstall target: ${harness}. Supported: opencode, codex, claude, hermes, pi, omp.`);
   }
 }
 

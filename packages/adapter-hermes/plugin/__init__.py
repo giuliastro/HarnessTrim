@@ -59,9 +59,29 @@ def register(ctx):
     ctx.register_hook("transform_tool_result", on_tool_result)
 
 
+def _load_file_config():
+    """Read the baked config from `config.json` beside the plugin (written by
+    `harnesstrim install hermes --mode/--min-length --apply`). Environment variables
+    still override it at runtime. Any malformed/missing file degrades to {}."""
+    cfg_path = PLUGIN_DIR / "config.json"
+    if not cfg_path.is_file():
+        return {}
+    try:
+        loaded = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(loaded, dict):
+        return {}
+    return {key: loaded[key] for key in CONFIG_DEFAULTS if key in loaded}
+
+
 def _load_config():
-    """Return the active plugin config from the environment (no global registry needed)."""
+    """Return the active plugin config: env vars override the baked config.json
+    (from install), which overrides the built-in defaults. Keeps the runtime
+    override (HARNESSTRIM_MODE / HARNESSTRIM_MINLENGTH) winning, so an installed
+    state can always be switched without reinstalling."""
     cfg = dict(CONFIG_DEFAULTS)
+    cfg.update(_load_file_config())
     for key in CONFIG_DEFAULTS:
         env_key = f"HARNESSTRIM_{key.upper()}"
         val = os.environ.get(env_key)
