@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { planUninstall, runUninstall } from "./uninstall.ts";
 import { runInstallOmp } from "./install-omp.ts";
+import { runInstallPi } from "./install-pi.ts";
 import { resolveSkillsSourceDir } from "./skills-source.ts";
 
 function tmpProject(): string {
@@ -141,49 +142,61 @@ test("hermes uninstall removes the plugin dir only when the marker is present", 
   assert.equal(fs.existsSync(pluginDest), false);
 });
 
-/**
- * Run `fn` with `process.env.HOME` pointing somewhere other than the real home. This is
- * the Windows-outside-a-POSIX-shell condition (HOME unset, so `path.resolve("")` collapses
- * to the cwd) reproduced deterministically: scope detection must follow `os.homedir()`,
- * not HOME, or it picks the wrong layout and the uninstall silently finds nothing.
+/*
+ * Scope round-trips. The bug these cover: `install` resolved user-vs-project scope with
+ * `os.homedir()` while `uninstall` used `process.env.HOME`. The two agree on POSIX
+ * (`os.homedir()` reads $HOME when set) but not on Windows, where HOME is usually unset
+ * and `path.resolve("")` collapses to the cwd — so uninstall looked for a layout install
+ * never wrote and reported "no change" with the adapter still on disk.
+ *
+ * Both sides now take the same injectable `home`, which is what makes this testable on
+ * every OS: the env-var trick cannot express "home is elsewhere" on POSIX, and cannot
+ * move the home at all on Windows.
  */
-function withMisleadingHome<T>(home: string, fn: () => T): T {
-  const previous = process.env.HOME;
-  process.env.HOME = home;
-  try {
-    return fn();
-  } finally {
-    if (previous === undefined) delete process.env.HOME;
-    else process.env.HOME = previous;
-  }
-}
-
-test("omp uninstall resolves the project layout regardless of HOME", () => {
+test("omp uninstall round-trips a project install (home elsewhere)", () => {
   const dir = tmpProject();
-  runInstallOmp(dir, true);
+  const home = tmpProject();
+  runInstallOmp(dir, true, {}, home);
   const hookPath = path.join(dir, ".omp", "hooks", "post", "harnesstrim.ts");
   assert.equal(fs.existsSync(hookPath), true);
 
-  // HOME === dir would make dir look like the user's home and select the
-  // ~/.omp/agent/hooks/ layout, which a project install never writes.
-  const plan = withMisleadingHome(dir, () => planUninstall("omp", dir));
+  const plan = planUninstall("omp", dir, home);
   assert.equal(plan.changed, true);
   assert.ok(plan.actions.some((a) => a.path === hookPath));
 
-  withMisleadingHome(dir, () => runUninstall("omp", dir, true));
+  runUninstall("omp", dir, true, home);
   assert.equal(fs.existsSync(hookPath), false);
   assert.equal(fs.existsSync(path.join(dir, ".omp", "hooks", "harnesstrim.json")), false);
 });
 
-test("pi uninstall resolves the project layout regardless of HOME", () => {
-  const dir = tmpProject();
-  const dest = path.join(dir, ".pi", "extensions", "harnesstrim");
-  fs.mkdirSync(dest, { recursive: true });
-  fs.writeFileSync(path.join(dest, ".installed"), "# harnesstrim:pi-extension");
+test("omp uninstall round-trips a user install (dir is the home)", () => {
+  const home = tmpProject();
+  runInstallOmp(home, true, {}, home);
+  // User scope nests under .omp/agent/, which the project layout never writes.
+  const hookPath = path.join(home, ".omp", "agent", "hooks", "post", "harnesstrim.ts");
+  assert.equal(fs.existsSync(hookPath), true);
 
-  const plan = withMisleadingHome(dir, () => planUninstall("pi", dir));
+  const plan = planUninstall("omp", home, home);
   assert.equal(plan.changed, true);
-  assert.ok(plan.actions.some((a) => a.path === dest));
+  assert.ok(plan.actions.some((a) => a.path === hookPath));
+
+  runUninstall("omp", home, true, home);
+  assert.equal(fs.existsSync(hookPath), false);
+});
+
+test("pi uninstall round-trips both scopes", () => {
+  const dir = tmpProject();
+  const home = tmpProject();
+
+  runInstallPi(dir, true, {}, home);
+  const projectDest = path.join(dir, ".pi", "extensions", "harnesstrim");
+  assert.equal(fs.existsSync(path.join(projectDest, ".installed")), true);
+  assert.ok(planUninstall("pi", dir, home).actions.some((a) => a.path === projectDest));
+
+  runInstallPi(home, true, {}, home);
+  const userDest = path.join(home, ".pi", "agent", "extensions", "harnesstrim");
+  assert.equal(fs.existsSync(path.join(userDest, ".installed")), true);
+  assert.ok(planUninstall("pi", home, home).actions.some((a) => a.path === userDest));
 });
 
 test("unknown uninstall target throws", () => {

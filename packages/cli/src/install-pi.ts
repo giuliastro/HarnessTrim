@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import {
   planPiInstall,
   markerFileContent,
@@ -10,6 +9,7 @@ import {
   type PiInstallPlan,
 } from "@harnesstrim/adapter-pi";
 import { resolvePiExtensionSourceDir } from "./assets.ts";
+import { scopeOf, piExtensionDir } from "./scope.ts";
 
 export interface PiInstallResult {
   plan: PiInstallPlan;
@@ -66,13 +66,12 @@ export function readPiConfigFile(configPath: string): Partial<PiAdapterConfig> |
 export function runInstallPi(
   installDir: string,
   apply: boolean,
-  options: PiInstallOptions = {}
+  options: PiInstallOptions = {},
+  home?: string
 ): PiInstallResult {
   const extensionSourceDir = resolvePiExtensionSourceDir();
-  const scope = path.resolve(installDir) === path.resolve(os.homedir()) ? "user" : "project";
-  const dest = scope === "user"
-    ? path.join(installDir, ".pi", "agent", "extensions", "harnesstrim")
-    : path.join(installDir, ".pi", "extensions", "harnesstrim");
+  const scope = scopeOf(installDir, home);
+  const dest = piExtensionDir(installDir, home);
   const configPath = path.join(dest, "config.json");
 
   const existingConfig = readPiConfigFile(configPath);

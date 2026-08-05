@@ -1,11 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import { HARNESSTRIM_MARKER as CLAUDE_MARKER } from "@harnesstrim/adapter-claude";
 import { HARNESSTRIM_MARKER as CODEX_MARKER } from "@harnesstrim/adapter-codex";
 import { OMP_HOOK_NAME, OMP_CONFIG_NAME, OMP_HOOK_MARKER } from "@harnesstrim/adapter-omp";
 import { OPENCODE_PLUGIN_NAME } from "./install.ts";
 import { listShippedSkills, resolveSkillsSourceDir } from "./skills-source.ts";
+import { piExtensionDir, ompHooksDir } from "./scope.ts";
 
 /**
  * `harnesstrim uninstall <harness>` — remove ONLY what `install <harness>` wrote.
@@ -38,19 +38,6 @@ export interface UninstallPlan {
 
 export interface UninstallResult extends UninstallPlan {
   applied: boolean;
-}
-
-/**
- * Which scope an uninstall targets: `user` when `dir` is the user's home directory,
- * `project` otherwise. Must resolve the home directory exactly like the installers do
- * (`os.homedir()`) — `process.env.HOME` is unset on Windows outside a POSIX shell, and
- * `path.resolve("")` then collapses to the cwd, which flips the scope both ways: a
- * default `uninstall omp` (dir = home) looks for a project layout, and an explicit
- * `uninstall omp .` looks for a user layout. Either way nothing is found and the
- * installed adapter silently survives.
- */
-function scopeOf(dir: string): "user" | "project" {
-  return path.resolve(dir) === path.resolve(os.homedir()) ? "user" : "project";
 }
 
 function readOrNull(p: string): string | null {
@@ -262,12 +249,8 @@ export function planHermesUninstall(dir: string): UninstallPlan {
   return { harness: "hermes", dir, changed: actions.length > 0, actions };
 }
 
-export function planPiUninstall(dir: string): UninstallPlan {
-  const scope = scopeOf(dir);
-  const dest =
-    scope === "user"
-      ? path.join(dir, ".pi", "agent", "extensions", "harnesstrim")
-      : path.join(dir, ".pi", "extensions", "harnesstrim");
+export function planPiUninstall(dir: string, home?: string): UninstallPlan {
+  const dest = piExtensionDir(dir, home);
   const actions: UninstallAction[] = [];
   if (markerPresent(dest)) {
     actions.push({ type: "remove-dir", path: dest, note: "Pi extension installed by HarnessTrim" });
@@ -275,12 +258,8 @@ export function planPiUninstall(dir: string): UninstallPlan {
   return { harness: "pi", dir, changed: actions.length > 0, actions };
 }
 
-export function planOmpUninstall(dir: string): UninstallPlan {
-  const scope = scopeOf(dir);
-  const hooks =
-    scope === "user"
-      ? path.join(dir, ".omp", "agent", "hooks")
-      : path.join(dir, ".omp", "hooks");
+export function planOmpUninstall(dir: string, home?: string): UninstallPlan {
+  const hooks = ompHooksDir(dir, home);
   const actions: UninstallAction[] = [];
 
   const hookPath = path.join(hooks, "post", OMP_HOOK_NAME);
@@ -302,7 +281,12 @@ export function planOmpUninstall(dir: string): UninstallPlan {
   return { harness: "omp", dir, changed: actions.length > 0, actions };
 }
 
-export function planUninstall(harness: string, dir: string): UninstallPlan {
+/**
+ * `home` overrides the directory that decides user vs project scope (pi and omp only).
+ * Production callers omit it and get `os.homedir()`, exactly as the installers do; tests
+ * pass it to pin a scope without moving the real home directory.
+ */
+export function planUninstall(harness: string, dir: string, home?: string): UninstallPlan {
   switch (harness) {
     case "claude":
       return planClaudeUninstall(dir);
@@ -313,17 +297,17 @@ export function planUninstall(harness: string, dir: string): UninstallPlan {
     case "hermes":
       return planHermesUninstall(dir);
     case "pi":
-      return planPiUninstall(dir);
+      return planPiUninstall(dir, home);
     case "omp":
-      return planOmpUninstall(dir);
+      return planOmpUninstall(dir, home);
     default:
       throw new Error(`Unknown uninstall target: ${harness}. Supported: opencode, codex, claude, hermes, pi, omp.`);
   }
 }
 
 /** Apply an uninstall plan (destructive). Returns the resulting plan with applied=true. */
-export function runUninstall(harness: string, dir: string, apply: boolean): UninstallResult {
-  const plan = planUninstall(harness, dir);
+export function runUninstall(harness: string, dir: string, apply: boolean, home?: string): UninstallResult {
+  const plan = planUninstall(harness, dir, home);
   if (!apply || !plan.changed) return { ...plan, applied: false };
 
   for (const action of plan.actions) {
