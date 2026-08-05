@@ -28,6 +28,28 @@ jobs:
       - name: Benchmark (fails if signal fidelity drops)
         run: pnpm run bench
 
+  # The same clean-package gate the release workflow runs, moved forward to every PR.
+  # It catches what `pnpm run test` structurally cannot: whether the published tarball
+  # works, and whether the assertions in smoke-test.sh still match real CLI output.
+  # Running it only at release meant a broken assertion could sit on main until a tag.
+  # ubuntu only, matching the release job — the script is bash/POSIX (mktemp, timeout,
+  # an executable node_modules/.bin entry).
+  smoke:
+    name: clean-package smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: CLI build
+        run: node packages/cli/build.mjs
+      - name: Clean-package smoke test (npm pack -> fresh install)
+        run: bash packages/cli/smoke-test.sh
+
   hermes-plugin:
     name: hermes python plugin
     runs-on: ubuntu-latest
