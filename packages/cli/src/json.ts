@@ -5,6 +5,7 @@ import type { CodexGlobalHookInstallResult, CodexInstallResult } from "./install
 import type { ClaudeInstallResult } from "./install-claude.ts";
 import type { PiInstallResult } from "./install-pi.ts";
 import type { HermesInstallResult } from "./install-hermes.ts";
+import type { OmpInstallResult } from "./install-omp.ts";
 
 /**
  * Machine-readable CLI output (the `--json` flag). Every command that accepts `--json`
@@ -163,7 +164,12 @@ export function hermesInstallJson(result: HermesInstallResult, apply: boolean): 
     alreadyInstalled: result.plan.alreadyInstalled,
     applied: result.applied,
     actions,
-    details: { enabled: result.enabled, enableMessage: result.enableMessage ?? null },
+    details: {
+      enabled: result.enabled,
+      enableMessage: result.enableMessage ?? null,
+      configPath: result.configPath,
+      config: result.config,
+    },
   };
 }
 
@@ -183,6 +189,33 @@ export function piInstallJson(result: PiInstallResult, apply: boolean): JsonInst
     alreadyInstalled: result.plan.alreadyInstalled,
     applied: result.applied,
     actions,
+    details: {
+      configPath: result.configPath,
+      config: result.config,
+    },
+  };
+}
+
+export function ompInstallJson(result: OmpInstallResult, apply: boolean): JsonInstallPlan {
+  const actions: JsonAction[] = [
+    {
+      type: result.plan.alreadyInstalled ? "none" : "copy",
+      path: result.plan.hookDest,
+      from: result.plan.hookSource,
+      note: result.plan.alreadyInstalled ? "already installed" : "copy OMP tool_result hook",
+    },
+  ];
+  return {
+    harness: "omp",
+    dryRun: !apply,
+    changed: !result.plan.alreadyInstalled,
+    alreadyInstalled: result.plan.alreadyInstalled,
+    applied: result.applied,
+    actions,
+    details: {
+      configPath: result.configPath,
+      config: result.config,
+    },
   };
 }
 

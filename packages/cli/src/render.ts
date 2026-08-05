@@ -6,6 +6,7 @@ import type { CodexGlobalHookInstallResult, CodexInstallResult } from "./install
 import type { ClaudeInstallResult } from "./install-claude.ts";
 import type { PiInstallResult } from "./install-pi.ts";
 import type { HermesInstallResult } from "./install-hermes.ts";
+import type { OmpInstallResult } from "./install-omp.ts";
 import type { UninstallResult } from "./uninstall.ts";
 
 const ICON: Record<Severity, string> = { warn: "!", info: "i", ok: "+" };
@@ -227,11 +228,12 @@ export function renderHermesInstall(result: HermesInstallResult, apply: boolean)
       lines.push(`  Enable manually: ${result.enableMessage}`);
     }
     lines.push("");
-    lines.push("Restart Hermes to load the refreshed plugin.");
+    lines.push(`  Baked config -> ${result.configPath} (mode ${result.config.mode}, min-length ${result.config.minLength})`);
+    lines.push("  Restart Hermes to load the refreshed plugin.");
   } else {
     lines.push(`  Source: ${plan.pluginSource}`);
     lines.push(`  Dest:   ${plan.pluginDest}`);
-    lines.push("  (plugin.yaml + __init__.py; plugin will be enabled on --apply when Hermes CLI is available)");
+    lines.push("  (plugin.yaml + __init__.py + config.json; plugin will be enabled on --apply when Hermes CLI is available)");
   }
 
   if (!apply) {
@@ -247,20 +249,48 @@ export function renderPiInstall(result: PiInstallResult, apply: boolean): string
   lines.push(`${apply ? "Installed" : "Would install"} Pi extension`);
   lines.push("");
 
-  if (plan.alreadyInstalled) {
-    lines.push(`Pi extension already installed at ${plan.extensionDest} (no change).`);
+  if (plan.alreadyInstalled && !apply) {
+    lines.push(`Pi extension already installed at ${plan.extensionDest}${" "}(no change).`);
   } else {
     lines.push(`Extension -> ${plan.extensionDest}`);
     if (apply) {
       lines.push(`  Copied: ${result.copiedFiles.join(", ")}`);
     } else {
       lines.push(`  Source: ${plan.extensionSource}`);
-      lines.push("  (index.ts + .installed marker)");
+      lines.push("  (index.ts + .installed marker + config.json)");
     }
     lines.push("");
     lines.push("The extension hooks Pi's `tool_result` and needs `harnesstrim` on PATH.");
-    lines.push("It starts in dry-run (logs to stderr); set HARNESSTRIM_MODE=active to reduce.");
   }
+  lines.push(`  Baked config -> ${result.configPath} (mode ${result.config.mode}, min-length ${result.config.minLength}${result.config.metrics ? `, metrics ${result.config.metrics}` : ""})`);
+
+  if (!apply) {
+    lines.push("");
+    lines.push("Dry run — nothing written. Re-run with `--apply`.");
+  }
+  return lines.join("\n");
+}
+
+export function renderOmpInstall(result: OmpInstallResult, apply: boolean): string {
+  const { plan } = result;
+  const lines: string[] = [];
+  lines.push(`${apply ? "Installed" : "Would install"} OMP tool_result hook`);
+  lines.push("");
+
+  if (plan.alreadyInstalled) {
+    lines.push(`OMP hook already installed at ${plan.hookDest} (no change).`);
+  } else {
+    lines.push(`Hook -> ${plan.hookDest}`);
+    if (apply) {
+      lines.push(`  Copied: ${result.copiedFiles.join(", ")}`);
+    } else {
+      lines.push(`  Source: ${plan.hookSource}`);
+      lines.push("  (harnesstrim.ts factory in hooks/post/ — discovered and loaded by omp with no");
+      lines.push("   settings.json entry and no trust gate)");
+    }
+  }
+  lines.push(`  Config -> ${plan.configDest} (mode ${result.config.mode}, min-length ${result.config.minLength}${result.config.metrics ? `, metrics ${result.config.metrics}` : ""})`);
+  lines.push("  The hook reduces text tool results via `harnesstrim reduce` and needs `harnesstrim` on PATH.");
 
   if (!apply) {
     lines.push("");

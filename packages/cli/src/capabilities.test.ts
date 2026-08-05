@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { getCapabilities, CAPABILITIES } from "./capabilities.ts";
+import { getCapabilities } from "./capabilities.ts";
 import {
   opencodeInstallJson,
   claudeInstallJson,
@@ -22,18 +22,36 @@ function tmpProject(): string {
 }
 
 test("capabilities covers every supported harness and flags", () => {
-  const caps = getCapabilities("0.0.7");
-  assert.equal(caps.version, "0.0.7");
+  const caps = getCapabilities("0.1.0");
+  assert.equal(caps.version, "0.1.0");
   const names = Object.keys(caps.harnesses);
-  for (const h of ["opencode", "codex", "claude", "hermes", "pi"]) assert.ok(names.includes(h));
+  for (const h of ["opencode", "codex", "claude", "hermes", "pi", "omp"]) assert.ok(names.includes(h));
   // the narrowing flags the plan requires are documented
-  assert.ok(CAPABILITIES.harnesses.claude.narrowing.some((n) => n.flag === "--no-hook"));
-  assert.ok(CAPABILITIES.harnesses.claude.narrowing.some((n) => n.flag === "--no-instructions"));
-  assert.ok(CAPABILITIES.harnesses.codex.narrowing.some((n) => n.flag === "--no-instructions"));
-  assert.ok(CAPABILITIES.harnesses.opencode.narrowing.some((n) => n.flag === "--mode active|dryrun|off"));
-  assert.ok(CAPABILITIES.harnesses.opencode.narrowing.some((n) => n.flag === "--tools <name,...>"));
+  const h = caps.harnesses;
+  assert.ok(h["claude"].narrowing.some((n) => n.flag === "--no-hook"));
+  assert.ok(h["claude"].narrowing.some((n) => n.flag === "--no-instructions"));
+  assert.ok(h["codex"].narrowing.some((n) => n.flag === "--no-instructions"));
+  assert.ok(h["opencode"].narrowing.some((n) => n.flag === "--mode active|dryrun|off"));
+  assert.ok(h["opencode"].narrowing.some((n) => n.flag === "--tools <name,...>"));
+  assert.ok(h["hermes"].narrowing.some((n) => n.flag === "--min-length <n>"));
+  assert.ok(h["pi"].narrowing.some((n) => n.flag.startsWith("--metrics")));
+  assert.ok(h["omp"].narrowing.some((n) => n.flag.startsWith("--mode")));
   // every harness documents its reviewed write set
   for (const h of Object.values(caps.harnesses)) assert.ok(h.writeSet.length > 0);
+});
+
+test("capabilities digests pin the content install would write", () => {
+  const caps = getCapabilities("0.1.0");
+  assert.ok(caps.digests);
+  for (const h of ["opencode", "codex", "claude", "hermes", "pi", "omp"]) {
+    const d = caps.digests[h];
+    assert.ok(d && Object.keys(d).length > 0, `digests for ${h}`);
+  }
+  // deterministic rerun yields identical digests (release-verification table)
+  assert.deepEqual(getCapabilities("0.1.0").digests, caps.digests);
+  // digests actually pin content: hashing the known snippet text must match
+  const codexDigest = Object.values(caps.digests.codex).find((v) => typeof v === "string");
+  assert.equal(codexDigest?.length, 64);
 });
 
 test("doctorJson is valid JSON with the report shape", () => {

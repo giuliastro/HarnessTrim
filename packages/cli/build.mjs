@@ -5,6 +5,7 @@
 //   assets/skills/       <- the shipped skill pack
 //   assets/adapter-hermes/plugin/    <- the Hermes plugin bundle
 //   assets/adapter-pi/extension/     <- the Pi extension bundle
+//   assets/adapter-omp/hook/         <- the OMP hook bundle
 //
 // The bundle carries no runtime dependencies, so `npx harnesstrim` works
 // standalone. assets.ts resolves these directories next to the bundle in a
@@ -46,6 +47,10 @@ copyDir(
   path.join(repoRoot, "packages", "adapter-pi", "extension"),
   path.join(assetsDir, "adapter-pi", "extension"),
 );
+copyDir(
+  path.join(repoRoot, "packages", "adapter-omp", "hook"),
+  path.join(assetsDir, "adapter-omp", "hook"),
+);
 
 // 3. Bundle. Everything is inlined (workspace packages are unpublished; js-tiktoken,
 // the MCP SDK and zod are pulled in so the published package needs no dependencies).
@@ -60,9 +65,8 @@ await build({
   // `bench` is a repo-development command: it reads the benchmark fixtures and
   // writes a report, and the benchmarks module auto-runs when its own URL matches
   // process.argv[1] — which is true for *any* entry once bundled. Keep it external
-  // so importing it can't fire that guard, and so js-tiktoken stays out of the
-  // published bundle. In a standalone install the dynamic import fails and the CLI
-  // prints a dev-tool message (see the "bench" case in cli.ts).
+  // so importing it can't fire that guard. In a standalone install the dynamic
+  // import fails and the CLI prints a dev-tool message (see the "bench" case in cli.ts).
   external: ["@harnesstrim/benchmarks/run"],
 });
 

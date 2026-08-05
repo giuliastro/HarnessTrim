@@ -32,7 +32,9 @@ test("already-installed only when dir exists AND marker present", () => {
   assert.equal(plan.alreadyInstalled, true);
 });
 
-test("marker content mentions the extension and dryrun default", () => {
+test("marker content mentions the extension, config.json, and dryrun default", () => {
   assert.match(markerFileContent(), /pi-extension/);
-  assert.match(markerFileContent(), /HARNESSTRIM_MODE=active/);
+  assert.match(markerFileContent(), /HARNESSTRIM_MODE/);
+  assert.match(markerFileContent(), /config\.json/);
+  assert.match(markerFileContent(), /dryrun/);
 });
