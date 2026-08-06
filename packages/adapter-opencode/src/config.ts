@@ -70,7 +70,9 @@ export function resolveConfig(options: Record<string, unknown> = {}): AdapterCon
   const toolFilter = parseToolFilter(options.toolFilter) ?? parseToolFilter(env.HARNESSTRIM_TOOLS);
 
   const telemetry =
-    options.telemetry === true || env.HARNESSTRIM_TELEMETRY === "1" || env.HARNESSTRIM_TELEMETRY === "true";
+    typeof options.telemetry === "boolean"
+      ? options.telemetry
+      : env.HARNESSTRIM_TELEMETRY === "1" || env.HARNESSTRIM_TELEMETRY === "true";
   const telemetryPath =
     (typeof options.telemetryPath === "string" ? options.telemetryPath : undefined) ??
     env.HARNESSTRIM_TELEMETRY_PATH ??

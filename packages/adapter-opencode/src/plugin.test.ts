@@ -84,7 +84,7 @@ test("telemetry: appends a TrimEvent when enabled", async () => {
 test("telemetry: off by default writes nothing", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "htrim-telemetry-"));
   const telemetryPath = path.join(dir, "metrics.jsonl");
-  const hooks = await HarnessTrim(noopInput, { mode: "active", telemetryPath });
+  const hooks = await HarnessTrim(noopInput, { mode: "active", telemetry: false, telemetryPath });
   const { input, output } = afterArgs(noisyTestOutput);
   await hooks["tool.execute.after"]!(input, output);
   assert.equal(fs.existsSync(telemetryPath), false);
