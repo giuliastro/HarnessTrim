@@ -167,6 +167,7 @@ export function hermesInstallJson(result: HermesInstallResult, apply: boolean): 
     details: {
       enabled: result.enabled,
       enableMessage: result.enableMessage ?? null,
+      pluginListed: result.pluginListed ?? null,
       configPath: result.configPath,
       config: result.config,
     },

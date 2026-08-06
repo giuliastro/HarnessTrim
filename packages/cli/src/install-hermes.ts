@@ -20,6 +20,15 @@ export interface HermesInstallResult {
   enabled: boolean | null;
   /** Diagnostic when Hermes CLI is unavailable or enable failed. */
   enableMessage?: string;
+  /**
+   * Post-enable recognition: whether the freshly installed plugin appears in
+   * `hermes plugins list` output. `"listed"` means the Hermes CLI can see the
+   * plugin on disk; `"absent"` means enable ran but the plugin is not listed;
+   * `null` means the CLI was unavailable or `plugins list` could not run (e.g.
+   * it was reached from inside the running gateway). This is NOT a proof that
+   * the running gateway has loaded the new bundle — that happens at restart.
+   */
+  pluginListed: boolean | null;
   /** Absolute path of the baked config.json (mirrors the installed mode/min-length). */
   configPath: string;
   /** The resolved adapter config written to config.json. */
@@ -129,5 +138,38 @@ export function runInstallHermes(
     }
   }
 
-  return { plan, applied, copiedFiles, enabled, enableMessage, configPath, config };
+  // Post-enable recognition check: does the Hermes CLI now see the plugin on disk?
+  // `hermes plugins list` is a local, read-only command — safe to run after an apply.
+  // This tells "installed + recognized" apart from "loaded by the running gateway":
+  // Hermes loads plugin bundles at gateway startup, so a healthy list result does NOT
+  // mean the active gateway has picked up the new bundle yet (that needs a restart).
+  const pluginListed = apply ? checkHermesPluginListed() : null;
+
+  return { plan, applied, copiedFiles, enabled, enableMessage, pluginListed, configPath, config };
+}
+
+/**
+ * Parser for `hermes plugins list` output: report whether the harnesstrim plugin is
+ * recognized. Tolerant to column layout — just looks for the plugin name. Pure, so
+ * the recognition logic is unit-testable without a Hermes CLI.
+ */
+export function hermesPluginListed(output: string): boolean {
+  if (!output) return false;
+  return new RegExp(HERMES_PLUGIN_NAME, "i").test(output);
+}
+
+/**
+ * Run `hermes plugins list` and report whether `harnesstrim` is recognized. Returns
+ * `null` when the Hermes CLI is unavailable or the command errors (e.g. it cannot run
+ * from inside the active gateway). Never throws.
+ */
+export function checkHermesPluginListed(): boolean | null {
+  try {
+    const list = spawnSync("hermes", ["plugins", "list"], { encoding: "utf8", timeout: 30_000 });
+    if (list.error) return null;
+    if (list.status !== 0) return null;
+    return hermesPluginListed(`${list.stdout}\n${list.stderr}`);
+  } catch {
+    return null;
+  }
 }
