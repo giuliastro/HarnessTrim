@@ -373,8 +373,30 @@ multi-tool Tier B evidence are all repeatable.
 ## 10. Status log
 
 
+- **2026-08-06** — **PR #15 merged + issue #14 closed (Hermes reload verification).**
+  - **PR #15 (`fix: let explicit telemetry options override environment`)** was originally
+    CONFLICTING because its branch carried the already-merged #11 commit plus the real delta, a single
+    fix commit. The fix: `resolveConfig()` in the OpenCode adapter now honors an explicit
+    `telemetry: false` option over `HARNESSTRIM_TELEMETRY` env (before, env=true won even when the
+    plugin option said false). Also made the "telemetry off" adapter test set `telemetry: false`
+    explicitly. Rebased the fix onto `main` (it applied cleanly against `5453779`), updated the fork
+    branch, and merged — **MERGEABLE + typecheck + 60 cli tests green**.
+  - **Issue #14 closed (Hermes `install --apply` runtime reload).** Reported that after a plugin
+    refresh the files on disk are new but the running gateway keeps the previous bundle, with no
+    clear guidance. Chose the "post-install verification" path (no abrupt gateway restart, no
+    guessed commands): after `--apply` + `hermes plugins enable`, the installer now also runs
+    `hermes plugins list` (read-only) and reports whether Hermes recognizes the plugin on disk
+    (`pluginListed`) — explicitly NOT a proof the running gateway loaded the new bundle (Hermes loads
+    plugins at gateway startup). Render + `--json` surface the distinction and direct the user to run
+    `hermes gateway restart` (or `systemctl --user restart hermes-gateway`) from a shell OUTSIDE the
+    gateway process. Parser extracted as a pure unit-tested function (`hermesPluginListed`); dry-run
+    still verifies nothing, defaulting to `null` when the Hermes CLI is unavailable. 3 new tests,
+    typecheck clean, READMEs (root + adapter-hermes) updated. Fueled by real dogfooding telemetry
+    (repo `.harnesstrim/metrics.jsonl`, 39 events) which surfaced that large pass-throughs were all
+    by-design (source diffs / cat / gh metadata), leaving only GitHub CI logs as a candidate for a
+    future `ci-log-slim` reducer.
+
 - **2026-08-03** — **v0.1.0 implemented (metrics depth + release CI), CLI bumped to 0.1.0, publish
-  still user-gated.** What landed:
   - **`harnesstrim metrics` depth (the "trustworthy measurement" half).** `summarize()` now reports
     `byHarness` (per-harness savings, sorted desc), attempt accounting (`reduced` / `passThrough` /
     `passThroughRate`) and `reductionErrors` + `grewChars` for attempts marked changed that grew the

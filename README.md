@@ -490,11 +490,15 @@ harnesstrim install hermes --apply                    # ~/.hermes/plugins/harnes
 harnesstrim install hermes /path/to/project --apply   # project-local .hermes/plugins/
 ```
 
-`install hermes --apply` refreshes the Python plugin, then enables it with `hermes plugins enable harnesstrim`
-when the Hermes CLI is available. The no-argument form targets the user-level Hermes home; pass an
-explicit directory only for a project-local or alternate-profile installation.
+`install hermes --apply` refreshes the Python plugin, enables it with `hermes plugins enable harnesstrim`
+when the Hermes CLI is available, and verifies recognition via `hermes plugins list` — reporting
+"on disk" separately from "loaded by the running gateway". The no-argument form targets the user-level
+Hermes home; pass an explicit directory only for a project-local or alternate-profile installation.
 
-Restart Hermes after installation. It starts in `dryrun`; set `HARNESSTRIM_MODE=active` to reduce and
+Hermes loads plugin bundles at gateway startup, so after a refresh run `hermes gateway restart` (or
+`systemctl --user restart hermes-gateway`) from a shell **outside** the gateway process — a gateway
+cannot safely replace itself from inside an active agent turn. It starts in `dryrun`; set
+`HARNESSTRIM_MODE=active` to reduce and
 `HARNESSTRIM_TELEMETRY=1` to record metrics. The plugin handles `terminal`, `read_file`, `web_extract`,
 `search_files`, `browser_snapshot`, and `vision_analyze`, preserving each tool's result schema. Run
 `harnesstrim metrics` to read the active Hermes profile's telemetry. It detects test output, git diffs,

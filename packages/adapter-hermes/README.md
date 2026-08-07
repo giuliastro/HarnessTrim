@@ -18,8 +18,12 @@ harnesstrim install hermes --apply                  # copies/refreshes and enabl
 harnesstrim install hermes /path/to/project --apply # explicit project-local .hermes target
 ```
 
-`--apply` invokes `hermes plugins enable harnesstrim` after copying when the Hermes CLI is available.
-Restart Hermes after installation or refresh so the gateway loads the current plugin bundle.
+`--apply` invokes `hermes plugins enable harnesstrim` after copying when the Hermes CLI is available,
+then runs `hermes plugins list` to verify the plugin is recognized on disk. Hermes loads plugin bundles
+at **gateway startup**, so a refreshed bundle is only active after the running gateway is restarted.
+`install` therefore prints guidance to reload the gateway with `hermes gateway restart` (or
+`systemctl --user restart hermes-gateway`) from a shell **outside** the gateway process — a gateway
+cannot safely replace itself from inside an active agent turn (Hermes self-restart protection).
 
 ## Mode lifecycle
 

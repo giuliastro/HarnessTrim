@@ -229,7 +229,19 @@ export function renderHermesInstall(result: HermesInstallResult, apply: boolean)
     }
     lines.push("");
     lines.push(`  Baked config -> ${result.configPath} (mode ${result.config.mode}, min-length ${result.config.minLength})`);
-    lines.push("  Restart Hermes to load the refreshed plugin.");
+    // Distinguish "recognized on disk" from "loaded by the running gateway". Hermes
+    // loads plugin bundles at gateway startup, so a fresh bundle is only active after
+    // the gateway process restarts — and a gateway must not replace itself from inside
+    // an active agent turn (Hermes self-restart protection, systemd-managed instances).
+    if (result.pluginListed === true) {
+      lines.push("  Hermes CLI sees the plugin on disk (hermes plugins list).");
+      lines.push("  The RUNNING gateway still uses the previous bundle until it is restarted.");
+    } else if (result.pluginListed === null) {
+      lines.push("  Could not verify via `hermes plugins list` (CLI unavailable or ran from inside the gateway).");
+    }
+    lines.push("  Reload: run `hermes gateway restart` from a shell OUTSIDE the gateway.");
+    lines.push("  (or for systemd instances: `systemctl --user restart hermes-gateway`); a reload");
+    lines.push("  may be deferred to the supervisor after the current run.");
   } else {
     lines.push(`  Source: ${plan.pluginSource}`);
     lines.push(`  Dest:   ${plan.pluginDest}`);
