@@ -34,6 +34,8 @@ test("capabilities covers every supported harness and flags", () => {
   assert.ok(h["opencode"].narrowing.some((n) => n.flag === "--mode active|dryrun|off"));
   assert.ok(h["opencode"].narrowing.some((n) => n.flag === "--tools <name,...>"));
   assert.ok(h["hermes"].narrowing.some((n) => n.flag === "--min-length <n>"));
+  assert.ok(h["hermes"].narrowing.some((n) => n.flag === "--no-enable"));
+  assert.ok(h["hermes"].writeSet.some((entry) => entry.includes("config.yaml")));
   assert.ok(h["pi"].narrowing.some((n) => n.flag.startsWith("--metrics")));
   assert.ok(h["omp"].narrowing.some((n) => n.flag.startsWith("--mode")));
   // every harness documents its reviewed write set
@@ -47,6 +49,8 @@ test("capabilities digests pin the content install would write", () => {
     const d = caps.digests[h];
     assert.ok(d && Object.keys(d).length > 0, `digests for ${h}`);
   }
+  assert.ok(caps.digests.hermes[".hermes/plugins/harnesstrim/.installed"]);
+  assert.ok(caps.digests.pi[".pi/extensions/harnesstrim/.installed"]);
   // deterministic rerun yields identical digests (release-verification table)
   assert.deepEqual(getCapabilities("0.1.0").digests, caps.digests);
   // digests actually pin content: hashing the known snippet text must match
