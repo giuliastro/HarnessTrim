@@ -373,6 +373,19 @@ multi-tool Tier B evidence are all repeatable.
 ## 10. Status log
 
 
+- **2026-08-28** — **v0.1.0 managed-onboarding contract hardened before publication.**
+  Token Harness integration exposed two places where the pre-release machine-readable contract was
+  weaker than the installer: Hermes' normal apply also mutates the user's `~/.hermes/config.yaml`
+  via `hermes plugins enable`, while `capabilities.writeSet` named only the plugin directory; and
+  the digest table omitted the deterministic `.installed` markers for Hermes/Pi. Added Hermes
+  `--no-enable` so a supervisor can copy the exact plugin artifacts without mutating user config,
+  while retaining the current standalone default of enabling automatically. `capabilities` now
+  declares both the conditional config.yaml write and the narrowing flag, and digests include the
+  marker files. This is intentionally completed before tagging 0.1.0 so consumers can pin one
+  immutable contract rather than special-case a released inconsistency. No npm release was made by
+  this change.
+
+
 - **2026-08-06** — **PR #15 merged + issue #14 closed (Hermes reload verification).**
   - **PR #15 (`fix: let explicit telemetry options override environment`)** was originally
     CONFLICTING because its branch carried the already-merged #11 commit plus the real delta, a single
