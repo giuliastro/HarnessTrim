@@ -7,8 +7,16 @@ import {
   HOOK_MATCHER as CLAUDE_HOOK_MATCHER,
 } from "@harnesstrim/adapter-claude";
 import { REDUCE_INSTRUCTION_SNIPPET as CODEX_SNIPPET } from "@harnesstrim/adapter-codex";
-import { DEFAULT_HERMES_ADAPTER_CONFIG, bakeHermesConfig } from "@harnesstrim/adapter-hermes";
-import { DEFAULT_PI_ADAPTER_CONFIG, bakePiConfig } from "@harnesstrim/adapter-pi";
+import {
+  DEFAULT_HERMES_ADAPTER_CONFIG,
+  bakeHermesConfig,
+  markerFileContent as hermesMarkerFileContent,
+} from "@harnesstrim/adapter-hermes";
+import {
+  DEFAULT_PI_ADAPTER_CONFIG,
+  bakePiConfig,
+  markerFileContent as piMarkerFileContent,
+} from "@harnesstrim/adapter-pi";
 import { DEFAULT_OMP_ADAPTER_CONFIG, bakeOmpConfig } from "@harnesstrim/adapter-omp";
 import {
   buildOpencodeWrapper,
@@ -111,13 +119,19 @@ export function computeHarnessDigests(): Record<string, HarnessDigests> {
     resolveHermesPluginSourceDir(),
     ".hermes/plugins/harnesstrim"
   );
-  digests.hermes[".hermes/plugins/harnesstrim/config.json"] = sha256(bakeHermesConfig(DEFAULT_HERMES_ADAPTER_CONFIG));
+  digests.hermes[".hermes/plugins/harnesstrim/.installed"] = sha256(hermesMarkerFileContent());
+  digests.hermes[".hermes/plugins/harnesstrim/config.json"] = sha256(
+    bakeHermesConfig(DEFAULT_HERMES_ADAPTER_CONFIG)
+  );
 
   digests.pi = hashTree(
     resolvePiExtensionSourceDir(),
     ".pi/extensions/harnesstrim"
   );
-  digests.pi[".pi/extensions/harnesstrim/config.json"] = sha256(bakePiConfig(DEFAULT_PI_ADAPTER_CONFIG));
+  digests.pi[".pi/extensions/harnesstrim/.installed"] = sha256(piMarkerFileContent());
+  digests.pi[".pi/extensions/harnesstrim/config.json"] = sha256(
+    bakePiConfig(DEFAULT_PI_ADAPTER_CONFIG)
+  );
 
   digests.omp = hashTree(
     resolveOmpHookSourceDir(),
