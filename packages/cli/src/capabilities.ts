@@ -96,8 +96,12 @@ export const CAPABILITIES: Record<string, HarnessCapabilities> = {
     narrowing: [
       { flag: "--mode active|dryrun|off", produces: "bake the reduction mode into the plugin's config.json (env HARNESSTRIM_MODE still wins)" },
       { flag: "--min-length <n>", produces: "bake the min threshold into the plugin's config.json (env HARNESSTRIM_MINLENGTH still wins)" },
+      { flag: "--no-enable", produces: "copy the plugin bundle only; do not run `hermes plugins enable` or edit config.yaml" },
     ],
-    writeSet: [".hermes/plugins/harnesstrim/ (incl. .installed marker + config.json)"],
+    writeSet: [
+      ".hermes/plugins/harnesstrim/ (incl. .installed marker + config.json)",
+      ".hermes/config.yaml (plugins.enabled entry; skipped with --no-enable)",
+    ],
   },
   pi: {
     adapter: "@harnesstrim/adapter-pi",
