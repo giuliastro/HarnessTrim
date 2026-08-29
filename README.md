@@ -38,6 +38,8 @@ pnpm exec harnesstrim reduce < output   # slim noisy tool output
 
 # Install an adapter (dry-run first, then --apply):
 pnpm exec harnesstrim install hermes --apply      # Hermes Agent plugin
+pnpm exec harnesstrim install hermes --mode active --no-enable --apply
+                                                    # supervisor-safe: plugin files only; caller owns config enablement
 pnpm exec harnesstrim install opencode --apply    # OpenCode runtime plugin
 pnpm exec harnesstrim install claude --apply      # Claude Code PostToolUse hook
 pnpm exec harnesstrim install codex --apply       # Codex skill pack + AGENTS.md instruction

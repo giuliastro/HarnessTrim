@@ -40,6 +40,14 @@ export interface HermesInstallOptions {
   mode?: HermesAdapterConfig["mode"];
   /** Bake the minimum output length (chars) into config.json. */
   minLength?: number;
+  /**
+   * Whether to call `hermes plugins enable harnesstrim` after copying the bundle.
+   *
+   * Defaults to true for the standalone CLI. Supervisors such as Token Harness set this false so
+   * they can own the exact `plugins.enabled` config entry transactionally instead of delegating
+   * a mutation of the user's whole config.yaml.
+   */
+  enable?: boolean;
 }
 
 function pluginDirExists(pluginDest: string): boolean {
@@ -125,16 +133,20 @@ export function runInstallHermes(
     copiedFiles.push("config.json");
     applied = true;
 
-    const enable = spawnSync("hermes", ["plugins", "enable", HERMES_PLUGIN_NAME], {
-      encoding: "utf8",
-    });
-    if (enable.error) {
-      enableMessage = "Hermes CLI was not available; enable harnesstrim after installing Hermes.";
-    } else if (enable.status === 0) {
-      enabled = true;
+    if (options.enable !== false) {
+      const enable = spawnSync("hermes", ["plugins", "enable", HERMES_PLUGIN_NAME], {
+        encoding: "utf8",
+      });
+      if (enable.error) {
+        enableMessage = "Hermes CLI was not available; enable harnesstrim after installing Hermes.";
+      } else if (enable.status === 0) {
+        enabled = true;
+      } else {
+        enabled = false;
+        enableMessage = (enable.stderr || enable.stdout || "Hermes refused to enable the plugin.").trim();
+      }
     } else {
-      enabled = false;
-      enableMessage = (enable.stderr || enable.stdout || "Hermes refused to enable the plugin.").trim();
+      enableMessage = "Hermes plugin enablement was intentionally skipped.";
     }
   }
 
@@ -143,7 +155,7 @@ export function runInstallHermes(
   // This tells "installed + recognized" apart from "loaded by the running gateway":
   // Hermes loads plugin bundles at gateway startup, so a healthy list result does NOT
   // mean the active gateway has picked up the new bundle yet (that needs a restart).
-  const pluginListed = apply ? checkHermesPluginListed() : null;
+  const pluginListed = apply && options.enable !== false ? checkHermesPluginListed() : null;
 
   return { plan, applied, copiedFiles, enabled, enableMessage, pluginListed, configPath, config };
 }

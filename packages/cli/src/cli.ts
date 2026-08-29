@@ -69,6 +69,7 @@ Usage:
                             --apply         Actually write the change
                             --mode <m>      Bake mode: active|dryrun|off (env still wins)
                             --min-length <n> Bake the min threshold (chars)
+                            --no-enable      Copy plugin only; do not edit Hermes config.yaml
   harnesstrim install pi [dir]             Install Pi tool_result extension (dry-run)
                             --apply         Actually write the change
                             --mode <m>      Bake mode: active|dryrun|off (env still wins)
@@ -122,6 +123,7 @@ async function main(argv: string[]): Promise<number> {
       global: { type: "boolean" },
       "no-hook": { type: "boolean" },
       "no-instructions": { type: "boolean" },
+      "no-enable": { type: "boolean" },
       mode: { type: "string" },
       tools: { type: "string" },
       json: { type: "boolean" },
@@ -214,7 +216,11 @@ async function main(argv: string[]): Promise<number> {
           console.error(`Invalid --min-length: ${values["min-length"]}`);
           return 1;
         }
-        const result = runInstallHermes(dir, apply, { mode, minLength });
+        const result = runInstallHermes(dir, apply, {
+          mode,
+          minLength,
+          enable: values["no-enable"] !== true,
+        });
         if (asJson) console.log(JSON.stringify(hermesInstallJson(result, apply), null, 2));
         else console.log(renderHermesInstall(result, apply));
         return 0;

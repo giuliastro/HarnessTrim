@@ -28,6 +28,23 @@ test("runInstallHermes --apply copies the bundle and bakes config", () => {
   assert.deepEqual(result.config, { mode: "dryrun", minLength: 300 });
 });
 
+test("runInstallHermes can copy the bundle without mutating Hermes enablement", () => {
+  const project = tmpProject();
+  const result = runInstallHermes(project, true, {
+    mode: "active",
+    minLength: 400,
+    enable: false,
+  });
+
+  assert.equal(result.applied, true);
+  assert.equal(result.enabled, null);
+  assert.equal(result.pluginListed, null);
+  assert.equal(result.enableMessage, "Hermes plugin enablement was intentionally skipped.");
+  assert.deepEqual(result.config, { mode: "active", minLength: 400 });
+  assert.ok(fs.existsSync(path.join(result.plan.pluginDest, ".installed")));
+  assert.ok(fs.existsSync(path.join(result.plan.pluginDest, "config.json")));
+});
+
 test("runInstallHermes dry-run writes nothing", () => {
   const project = tmpProject();
   const result = runInstallHermes(project, false, { mode: "active" });
