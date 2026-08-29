@@ -115,7 +115,7 @@ grep -q '"minLength": 800' "$HDP/.hermes/plugins/harnesstrim/config.json" || fai
 HNO="$PROJ/hermes-no-enable"
 mkdir -p "$HNO"
 "$BIN" install hermes "$HNO" --mode active --no-enable --apply --json >"$HNO/install.json" 2>/dev/null || fail "install hermes --no-enable --apply"
-node -e 'const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); if(r.enabled!==null || !String(r.enableMessage||"").includes("intentionally skipped")) process.exit(1)' "$HNO/install.json" || fail "hermes --no-enable did not report skipped enablement"
+node -e 'const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); if(r.details?.enabled!==null || !String(r.details?.enableMessage||"").includes("intentionally skipped")) process.exit(1)' "$HNO/install.json" || fail "hermes --no-enable did not report skipped enablement"
 [ -f "$HNO/.hermes/config.yaml" ] && fail "hermes --no-enable unexpectedly wrote config.yaml"
 "$BIN" install hermes "$HDP" --apply >/dev/null 2>&1 || fail "install hermes (2nd, idempotency)"
 grep -q '"mode": "active"' "$HDP/.hermes/plugins/harnesstrim/config.json" || fail "hermes re-apply reset the baked mode"
