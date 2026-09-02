@@ -109,10 +109,11 @@ def _find_harnesstrim_cli() -> str | None:
     return None
 
 
-def _call_reducer(text: str, min_length: int) -> tuple[str, str | None]:
-    """Shell out to ``harnesstrim reduce`` and return (slimmed_text, reducer_name).
+def _call_reducer(text: str, min_length: int) -> tuple[str, str | None, bool]:
+    """Shell out to ``harnesstrim reduce`` and return
+    (slimmed_text, reducer_name, reduction_failed).
 
-    Falls back to (original_text, None) if the CLI cannot be found or the pipe fails.
+    Falls back to (original_text, None, False) if the CLI cannot be found or the pipe fails.
     The reducer name is parsed from the ``--stats`` stderr line (e.g. ``test-output-slim``),
     used only for telemetry when enabled.
     """
@@ -125,10 +126,10 @@ def _call_reducer(text: str, min_length: int) -> tuple[str, str | None]:
             "or build from source: git clone https://github.com/harnesstrim/harnesstrim",
             stacklevel=2,
         )
-        return (text, None)
+        return (text, None, False)
 
     if len(text) < min_length:
-        return (text, None)
+        return (text, None, False)
 
     try:
         result = subprocess.run(
@@ -147,11 +148,12 @@ def _call_reducer(text: str, min_length: int) -> tuple[str, str | None]:
                     rest = line[len("[harnesstrim reduce] "):]
                     if ":" in rest and "no reduction" not in rest:
                         reducer = rest.split(":")[0].strip()
-            return (result.stdout.rstrip("\n"), reducer)
+            reduction_failed = "reducer failed; original output preserved" in result.stderr
+            return (result.stdout, reducer, reduction_failed)
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         pass
 
-    return (text, None)
+    return (text, None, False)
 
 
 def _text_targets(payload):
@@ -213,8 +215,17 @@ def on_tool_result(tool_name, args, result, **kwargs):
         if "[harnesstrim:" in text or "[hermes-trim" in text:
             continue
 
-        after, reducer = _call_reducer(text, cfg["minLength"])
+        after, reducer, reduction_failed = _call_reducer(text, cfg["minLength"])
         if after == text:
+            if reduction_failed and cfg["telemetry"]:
+                _write_metric(
+                    tool_name,
+                    reducer,
+                    before_len,
+                    before_len,
+                    changed=False,
+                    reduction_failed=True,
+                )
             continue
 
         changed = True
@@ -238,7 +249,14 @@ def on_tool_result(tool_name, args, result, **kwargs):
     return json.dumps(payload, ensure_ascii=False) if not isinstance(payload, str) else payload
 
 
-def _write_metric(tool: str, reducer: str | None, before: int, after: int) -> None:
+def _write_metric(
+    tool: str,
+    reducer: str | None,
+    before: int,
+    after: int,
+    changed: bool = True,
+    reduction_failed: bool = False,
+) -> None:
     """Append one TrimEvent JSONL line to METRICS_PATH (read by `harnesstrim metrics`).
 
     Only called in active mode when telemetry is explicitly enabled. Creates the parent
@@ -256,7 +274,8 @@ def _write_metric(tool: str, reducer: str | None, before: int, after: int) -> No
         "reducer": reducer,
         "beforeChars": before,
         "afterChars": after,
-        "changed": True,
+        "changed": changed,
+        "reductionFailed": reduction_failed,
         "beforeTokens": None,
         "afterTokens": None,
     }

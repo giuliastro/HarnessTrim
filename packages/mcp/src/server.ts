@@ -60,6 +60,20 @@ export function runReduceTool(
         afterTokens: countTokens ? countTokens(result.output) : undefined,
       })
     );
+  } else if (result.reductionError !== undefined) {
+    sink(
+      makeTrimEvent({
+        harness: "mcp",
+        tool: "reduce",
+        reducer: result.reductionError.reducer,
+        beforeChars: text.length,
+        afterChars: text.length,
+        changed: false,
+        reductionFailed: true,
+        beforeTokens: countTokens ? countTokens(text) : undefined,
+        afterTokens: countTokens ? countTokens(text) : undefined,
+      })
+    );
   } else if (trackPassThrough && text.length >= threshold) {
     sink(
       makeTrimEvent({

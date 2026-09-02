@@ -58,7 +58,9 @@ interface TextChunk {
   text?: unknown;
 }
 
-function reduce(text: string): { output: string | null; reducer: string | null } {
+function reduce(
+  text: string,
+): { output: string | null; reducer: string | null; reductionFailed: boolean } {
   try {
     const r = spawnSync("harnesstrim", ["reduce", "--min-length", String(MIN_LENGTH), "--stats"], {
       input: text,
@@ -67,14 +69,18 @@ function reduce(text: string): { output: string | null; reducer: string | null }
     });
     const stdout = typeof r.stdout === "string" ? r.stdout : "";
     const stderr = typeof r.stderr === "string" ? r.stderr : "";
-    const output = stdout.replace(/\n$/, "");
+    const output = stdout;
     if (r.status === 0 && output && output.length > 0) {
-      return { output, reducer: parseReducer(stderr) };
+      return {
+        output,
+        reducer: parseReducer(stderr),
+        reductionFailed: stderr.includes("reducer failed; original output preserved"),
+      };
     }
   } catch {
     /* harnesstrim not on PATH or failed — pass through */
   }
-  return { output: null, reducer: null };
+  return { output: null, reducer: null, reductionFailed: false };
 }
 
 function parseReducer(stderr: string): string | null {
@@ -98,6 +104,7 @@ function writeMetric(partial: {
   before: number;
   after: number;
   changed: boolean;
+  reductionFailed?: boolean;
 }): void {
   if (!METRICS_PATH) return;
   try {
@@ -114,6 +121,7 @@ function writeMetric(partial: {
       beforeChars: partial.before,
       afterChars: partial.after,
       changed: partial.changed,
+      reductionFailed: partial.reductionFailed ?? false,
       beforeTokens: null,
       afterTokens: null,
     };
@@ -135,10 +143,17 @@ export default function harnessTrim(pi: { on(event: string, handler: (event: unk
       const text = chunk.text;
       if (text.length < MIN_LENGTH || text.includes(MARKER)) return chunk;
 
-      const { output: reduced, reducer } = reduce(text);
+      const { output: reduced, reducer, reductionFailed } = reduce(text);
       if (!reduced || reduced.length >= text.length) {
         if (METRICS_PATH) {
-          writeMetric({ tool: eventTool(ev), reducer: null, before: text.length, after: text.length, changed: false });
+          writeMetric({
+            tool: eventTool(ev),
+            reducer: reductionFailed ? reducer : null,
+            before: text.length,
+            after: text.length,
+            changed: false,
+            reductionFailed,
+          });
         }
         return chunk;
       }

@@ -57,6 +57,19 @@ export const HarnessTrim: Plugin = async (_input, options) => {
           })
         );
         log(`${config.mode} ${input.tool} via ${result.reducer}: ${before} -> ${after} chars`);
+      } else if (result.reductionError !== undefined) {
+        sink(
+          makeTrimEvent({
+            harness: HARNESS,
+            tool: input.tool,
+            reducer: result.reductionError.reducer,
+            beforeChars: before,
+            afterChars: before,
+            changed: false,
+            reductionFailed: true,
+          })
+        );
+        log(`fail-open ${input.tool} via ${result.reductionError.reducer}: original output preserved`);
       } else if (config.trackPassThrough && before >= config.minLength) {
         // Attempted but nothing changed: record the pass-through so `metrics` can
         // report the share of unreduced output (the evidence base for new reducers).

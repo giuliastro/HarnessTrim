@@ -322,10 +322,15 @@ export function renderMetrics(result: MetricsResult): string {
   const lines = [
     `harnesstrim metrics — ${result.path}`,
     "",
-    `Attempts:     ${s.events} (${s.reduced} reduced, ${s.passThrough} pass-through, ${s.reductionErrors} error)`,
+    `Attempts:     ${s.events} (${s.reduced} reduced, ${s.passThrough} pass-through, ${s.reducerFailures} reducer failure, ${s.reductionErrors} growth error)`,
     `Pass-through: ${s.passThroughRate}% of attempts unchanged`,
     `Chars:        ${s.beforeChars} -> ${s.afterChars}  (saved ${s.savedChars}, -${s.reductionPct}%)`,
   ];
+  if (s.reducerFailures > 0) {
+    lines.push(
+      `Reducer failures: ${s.reducerFailures} fail-open attempt(s) preserved the original output — investigate`,
+    );
+  }
   if (s.reductionErrors > 0) {
     lines.push(`Reduction errors: ${s.reductionErrors} attempt(s) GREW the output (+${s.grewChars} chars) — investigate`);
   }
@@ -333,7 +338,9 @@ export function renderMetrics(result: MetricsResult): string {
   lines.push("By reducer:");
   for (const b of s.byReducer) {
     const p = b.beforeChars === 0 ? 0 : Math.round((b.savedChars / b.beforeChars) * 1000) / 10;
-    lines.push(`  ${b.reducer.padEnd(20)} ${b.count}x  saved ${b.savedChars} chars (-${p}%)`);
+    lines.push(
+      `  ${b.reducer.padEnd(20)} ${b.count}x  saved ${b.savedChars} chars (-${p}%)${b.failures > 0 ? `  failures ${b.failures}` : ""}`,
+    );
   }
   if (s.byHarness.length > 0) {
     lines.push("");
@@ -341,7 +348,9 @@ export function renderMetrics(result: MetricsResult): string {
     for (const h of s.byHarness) {
       const p = h.beforeChars === 0 ? 0 : Math.round((h.savedChars / h.beforeChars) * 1000) / 10;
       const sign = p < 0 ? "" : "-";
-      lines.push(`  ${h.harness.padEnd(12)} ${h.count}x  saved ${h.savedChars} chars (${sign}${Math.abs(p)}%)`);
+      lines.push(
+        `  ${h.harness.padEnd(12)} ${h.count}x  saved ${h.savedChars} chars (${sign}${Math.abs(p)}%)${h.failures > 0 ? `  failures ${h.failures}` : ""}`,
+      );
     }
   }
   return lines.join("\n");

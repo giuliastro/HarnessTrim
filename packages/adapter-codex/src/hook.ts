@@ -17,6 +17,8 @@ export interface CodexReduction {
   attempt: {
     tool: string;
     beforeChars: number;
+    reducer: string | null;
+    reductionFailed: boolean;
   } | null;
 }
 
@@ -37,7 +39,12 @@ export function reduceCodexPayload(rawJson: string, minLength?: number): CodexRe
       event: null,
       attempt:
         extracted.output.length >= (minLength ?? DEFAULT_MIN_LENGTH)
-          ? { tool: extracted.toolName, beforeChars: extracted.output.length }
+          ? {
+              tool: extracted.toolName,
+              beforeChars: extracted.output.length,
+              reducer: result.reductionError?.reducer ?? null,
+              reductionFailed: result.reductionError !== undefined,
+            }
           : null,
     };
   }

@@ -27,7 +27,7 @@ class PluginPayloadTests(unittest.TestCase):
         })
         self.original_reducer = plugin._call_reducer
         self.original_metric = plugin._write_metric
-        plugin._call_reducer = lambda text, _min: (f"[trimmed]{text[:8]}", "fixture")
+        plugin._call_reducer = lambda text, _min: (f"[trimmed]{text[:8]}", "fixture", False)
         plugin._write_metric = lambda *_args: None
 
     def tearDown(self):
@@ -65,6 +65,25 @@ class PluginPayloadTests(unittest.TestCase):
         )
         self.assertTrue(result["results"][0]["content"].startswith("[trimmed]"))
         self.assertTrue(result["results"][1]["content"].startswith("[trimmed]"))
+
+    def test_fail_open_reducer_error_records_failure_without_mutating_output(self):
+        os.environ["HARNESSTRIM_TELEMETRY"] = "true"
+        calls = []
+        plugin._call_reducer = lambda text, _min: (text, "fixture", True)
+        plugin._write_metric = lambda *args, **kwargs: calls.append((args, kwargs))
+
+        payload = {"output": "x" * 200}
+        result = plugin.on_tool_result("terminal", {}, json.dumps(payload))
+
+        self.assertIsNone(result)
+        self.assertEqual(len(calls), 1)
+        args, kwargs = calls[0]
+        self.assertEqual(args[0], "terminal")
+        self.assertEqual(args[1], "fixture")
+        self.assertEqual(args[2], 200)
+        self.assertEqual(args[3], 200)
+        self.assertEqual(kwargs["changed"], False)
+        self.assertEqual(kwargs["reduction_failed"], True)
 
 
 if __name__ == "__main__":

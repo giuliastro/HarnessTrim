@@ -18,6 +18,8 @@ export interface ClaudeReduction {
   attempt: {
     tool: string;
     beforeChars: number;
+    reducer: string | null;
+    reductionFailed: boolean;
   } | null;
 }
 
@@ -41,7 +43,12 @@ export function reduceClaudePayload(rawJson: string, minLength?: number): Claude
       event: null,
       attempt:
         extracted.output.length >= (minLength ?? DEFAULT_MIN_LENGTH)
-          ? { tool: extracted.toolName, beforeChars: extracted.output.length }
+          ? {
+              tool: extracted.toolName,
+              beforeChars: extracted.output.length,
+              reducer: result.reductionError?.reducer ?? null,
+              reductionFailed: result.reductionError !== undefined,
+            }
           : null,
     };
   }

@@ -354,8 +354,11 @@ telemetry and preserve benchmark signal recall.
 
 **Reducer-runtime hardening:** the shared in-process dispatcher is fail-open: a reducer exception
 passes the original payload through byte-for-byte and exposes failure metadata instead of breaking
-the harness. Tier A is also promoted from a reduction/fidelity check to a release gate over four
-properties: 100% signal recall/audit, deterministic output, idempotent second pass, and p95 reducer
+the harness. The telemetry path now preserves that distinction across direct adapters and
+CLI-backed Pi/OMP/Hermes integrations: fail-open exceptions are counted separately from ordinary
+pass-throughs and growth errors, attributed by reducer/harness, while exception messages and tool
+payloads are not persisted. Tier A is also promoted from a reduction/fidelity check to a release
+gate over four properties: 100% signal recall/audit, deterministic output, idempotent second pass, and p95 reducer
 latency ≤ 25 ms on every fixed fixture. This borrows the useful operational discipline of local
 token-optimizer products without introducing a mandatory proxy/daemon or another network hop.
 
