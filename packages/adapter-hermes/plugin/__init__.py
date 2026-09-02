@@ -149,7 +149,7 @@ def _call_reducer(text: str, min_length: int) -> tuple[str, str | None, bool]:
                     if ":" in rest and "no reduction" not in rest:
                         reducer = rest.split(":")[0].strip()
             reduction_failed = "reducer failed; original output preserved" in result.stderr
-            return (result.stdout.rstrip("\n"), reducer, reduction_failed)
+            return (result.stdout, reducer, reduction_failed)
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         pass
 
