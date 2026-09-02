@@ -101,7 +101,9 @@ function parseReducer(stderr: string): string | null {
   return null;
 }
 
-function reduceViaCli(text: string): { output: string | null; reducer: string | null } {
+function reduceViaCli(
+  text: string,
+): { output: string | null; reducer: string | null; reductionFailed: boolean } {
   try {
     const r = spawnSync("harnesstrim", ["reduce", "--min-length", String(MIN_LENGTH), "--stats"], {
       input: text,
@@ -110,13 +112,18 @@ function reduceViaCli(text: string): { output: string | null; reducer: string | 
     });
     if (r.status === 0 && typeof r.stdout === "string" && r.stdout.length > 0) {
       const output = r.stdout.replace(/\n$/, "");
-      const reducer = typeof r.stderr === "string" ? parseReducer(r.stderr) : null;
-      return { output, reducer };
+      const stderr = typeof r.stderr === "string" ? r.stderr : "";
+      const reducer = parseReducer(stderr);
+      return {
+        output,
+        reducer,
+        reductionFailed: stderr.includes("reducer failed; original output preserved"),
+      };
     }
   } catch {
     /* harnesstrim not on PATH or failed — pass through */
   }
-  return { output: null, reducer: null };
+  return { output: null, reducer: null, reductionFailed: false };
 }
 
 /** Append a TrimEvent JSONL receipt (self-contained: no workspace imports allowed). */
@@ -126,6 +133,7 @@ function writeMetric(partial: {
   before: number;
   after: number;
   changed: boolean;
+  reductionFailed?: boolean;
 }): void {
   if (!METRICS_PATH) return;
   try {
@@ -142,6 +150,7 @@ function writeMetric(partial: {
       beforeChars: partial.before,
       afterChars: partial.after,
       changed: partial.changed,
+      reductionFailed: partial.reductionFailed ?? false,
       beforeTokens: null,
       afterTokens: null,
     };
@@ -163,11 +172,18 @@ export default function harnesstrim(pi: ExtensionAPI): void {
       const text = chunk.text;
       if (shouldSkip(text, MIN_LENGTH)) return chunk;
 
-      const { output: reduced, reducer } = reduceViaCli(text);
+      const { output: reduced, reducer, reductionFailed } = reduceViaCli(text);
       if (!reduced || reduced.length >= text.length) {
-        // Attempted reduction, nothing changed — a recorded pass-through.
+        // A reducer exception is a distinct fail-open event; a no-match is a pass-through.
         if (METRICS_PATH) {
-          writeMetric({ tool: eventTool(event), reducer: null, before: text.length, after: text.length, changed: false });
+          writeMetric({
+            tool: eventTool(event),
+            reducer: reductionFailed ? reducer : null,
+            before: text.length,
+            after: text.length,
+            changed: false,
+            reductionFailed,
+          });
         }
         return chunk;
       }
