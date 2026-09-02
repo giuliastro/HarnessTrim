@@ -50,6 +50,22 @@ jobs:
           cache: pnpm
           registry-url: "https://registry.npmjs.org"
       - run: pnpm install --frozen-lockfile
+      - name: Refuse publish-time bin stripping
+        working-directory: packages/cli
+        run: |
+          npm publish --dry-run --json >/tmp/harnesstrim-publish.json 2>/tmp/harnesstrim-publish.stderr
+          cat /tmp/harnesstrim-publish.stderr
+          if grep -Eq 'bin\\[harnesstrim\\].*(invalid|removed)|script name .* was invalid and removed' /tmp/harnesstrim-publish.stderr; then
+            echo "npm publish would remove the harnesstrim executable" >&2
+            exit 1
+          fi
+          expected="$(node -p "require('./package.json').version")"
+          actual="$(node dist/cli.mjs --version)"
+          test "$actual" = "$expected" || {
+            echo "bundle says $actual but package.json says $expected" >&2
+            exit 1
+          }
+
       - name: npm publish (harnesstrim)
         working-directory: packages/cli
         run: npm publish
