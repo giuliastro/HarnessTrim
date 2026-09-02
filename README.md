@@ -181,8 +181,10 @@ with **signal fidelity**, **determinism**, **idempotency**, and **p95 local late
 that must survive (the error, the failing test, the assertion, the changed files, the summary), it
 measures how many are kept and audits any dropped line that looks like signal. The latency budget is
 25 ms p95 per fixed fixture, with warm-up and repeated measurements to avoid treating one scheduler
-spike as a regression. Headline reduction/fidelity from the seed fixtures remains: **−63% tokens at 100% signal recall** across the seed fixtures (`pnpm run bench`,
-no LLM). The bench fails loudly if signal recall drops below 100% or a signal-looking line is dropped.
+spike as a regression. Current Tier A headline: **−76.6% tokens at 100% signal recall** across the
+seven fixed fixtures (`pnpm run bench`, no LLM), including the lint-warning reducer added after the
+original six-fixture baseline. The bench fails loudly if fidelity, determinism, idempotency, or the
+latency budget regresses.
 
   | Fixture | Reducer | Tokens | Reduction | Signal kept |
   | --- | --- | --- | --- | --- |
@@ -192,7 +194,8 @@ no LLM). The bench fails loudly if signal recall drops below 100% or a signal-lo
   | JSON API array | json-output-slim | 527 → 140 | −73.4% | 3/3 |
   | file listing (long) | file-listing-slim | 508 → 190 | −62.6% | 3/3 |
   | daily briefing (prose) | generic-text-slim | 196 → 150 | −23.5% | 3/3 |
-  | **Measured blend** | | 2973 → 1090 | **−63.3%** | **24/24 (100%)** |
+  | eslint warning wall | lint-output-slim | 2221 → 127 | −94.3% | 5/5 |
+  | **Measured blend** | | 5194 → 1217 | **−76.6%** | **29/29 (100%)** |
 
 Each fixture's must-keep lines are annotated in [`benchmarks/src/run.ts`](benchmarks/src/run.ts), so
 "what survives" is explicit and reproducible, not a claim.
