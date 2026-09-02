@@ -49,12 +49,44 @@ test("loadMetrics reports pass-through and per-harness splits", () => {
   assert.equal(result.summary.reduced, 2);
   assert.equal(result.summary.passThrough, 1);
   assert.equal(result.summary.passThroughRate, 33.3);
+  assert.equal(result.summary.reducerFailures, 0);
   assert.equal(result.summary.reductionErrors, 0);
-assert.deepEqual(
+  assert.deepEqual(
     result.summary.byHarness.map((h) => h.harness),
     ["opencode", "claude"] // sorted by saved chars desc (opencode saved 700, claude 300)
   );
   assert.equal(result.summary.byHarness[0].savedChars, 700);
+});
+
+test("loadMetrics reports fail-open reducer failures separately from pass-throughs", () => {
+  const p = tmpFile(
+    line({
+      harness: "opencode",
+      tool: "bash",
+      reducer: "test-output-slim",
+      beforeChars: 600,
+      afterChars: 600,
+      changed: false,
+      reductionFailed: true,
+    }) +
+      "\n" +
+      line({
+        harness: "opencode",
+        tool: "read",
+        reducer: null,
+        beforeChars: 500,
+        afterChars: 500,
+        changed: false,
+      }) +
+      "\n",
+  );
+  const result = loadMetrics(p);
+  assert.equal(result.summary.reducerFailures, 1);
+  assert.equal(result.summary.passThrough, 1);
+  assert.equal(result.summary.reductionErrors, 0);
+  assert.equal(result.summary.byReducer[0]?.reducer, "test-output-slim");
+  assert.equal(result.summary.byReducer[0]?.failures, 1);
+  assert.equal(result.summary.byHarness[0]?.failures, 1);
 });
 
 test("loadMetrics reports reduction errors when output grew", () => {
