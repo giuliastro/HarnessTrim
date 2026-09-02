@@ -134,7 +134,9 @@ flowchart TB
 
 The adapter intercepts tool results, the shared core decides what (if anything) to slim, and only the
 signal reaches the model. Reducers are **deterministic and idempotent** and never touch the cacheable
-prompt prefix — so they shrink cost without busting the prompt cache.
+prompt prefix — so they shrink cost without busting the prompt cache. The shared dispatcher is
+also **fail-open**: if a matched reducer throws, HarnessTrim returns the original tool output
+byte-for-byte instead of turning an optimization failure into a harness failure.
 
 ```mermaid
 sequenceDiagram
@@ -163,8 +165,9 @@ What HarnessTrim optimizes for, and how each is measured:
 | **Blended session reduction** | total tokens saved / baseline session tokens | 30–50% (model) | end-to-end benchmark (Tier B, planned) |
 | **Quality retention** | task-success parity vs the untrimmed baseline | 100% (no regressions) | Tier B benchmark |
 | **Cache preservation** | share of reductions that leave the cacheable prefix untouched | 100% | design guarantee (reducers only touch volatile output) |
+| **Reducer stability** | same input produces the same output; reducing an already-reduced output is a no-op | 100% deterministic + idempotent | Tier A benchmark, release gate |
 | **Coverage** | share of noisy tool calls that a reducer actually matched | grow over time | telemetry (`reducer: null` = missed) |
-| **Overhead** | added latency / tokens from the stack itself | negligible | reducers run locally, no tokenizer in-process |
+| **Overhead** | reducer execution latency | p95 ≤ 25 ms per Tier A fixture | Tier A benchmark, release gate |
 
 ## Savings: measured vs hypothesized
 
@@ -173,10 +176,12 @@ Two honesty tiers. Keep them separate.
 ### Measured (real numbers today)
 
 The token number alone is not the point — a reducer that drops the one line you needed would post a
-great percentage and ruin the context. So the benchmark measures **both**: token reduction *and*
-**signal fidelity** — of the lines that must survive (the error, the failing test, the assertion, the
-changed files, the summary), how many are kept. It also **audits** any dropped line that looks like
-signal. Headline: **−63% tokens at 100% signal recall** across the seed fixtures (`pnpm run bench`,
+great percentage and ruin the context. So the Tier A release gate measures token reduction together
+with **signal fidelity**, **determinism**, **idempotency**, and **p95 local latency**. Of the lines
+that must survive (the error, the failing test, the assertion, the changed files, the summary), it
+measures how many are kept and audits any dropped line that looks like signal. The latency budget is
+25 ms p95 per fixed fixture, with warm-up and repeated measurements to avoid treating one scheduler
+spike as a regression. Headline reduction/fidelity from the seed fixtures remains: **−63% tokens at 100% signal recall** across the seed fixtures (`pnpm run bench`,
 no LLM). The bench fails loudly if signal recall drops below 100% or a signal-looking line is dropped.
 
   | Fixture | Reducer | Tokens | Reduction | Signal kept |
