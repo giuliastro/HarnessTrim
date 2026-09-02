@@ -353,12 +353,14 @@ pnpm exec harnesstrim bench                    # run the Tier A reducer micro-be
   available narrowing flags, and the exact write-set each installer owns.
 - `doctor`, `install`, and `metrics` accept `--json` for machine-readable output (scripts/CI).
 - `reduce` is the pipe-friendly reducer (RTK-style) shared across harnesses.
-- `metrics` aggregates the telemetry the adapter emits (off by default) into totals with
-  **per-reducer** and **per-harness** splits, a **pass-through rate** (attempted-but-unchanged
-  output — the evidence base for adding reducers) and **reduction-error** counts (attempts that grew
-  the output). Pass-throughs are recorded whenever telemetry is on; opt out with
-  `HARNESSTRIM_TRACK_PASSTHROUGH=0`. Lines carry a schema version and a stable event id; only
-  character counts are recorded, never tool payloads.
+- `metrics` aggregates the telemetry the adapter emits into totals with **per-reducer** and
+  **per-harness** splits, a **pass-through rate** (no reducer matched), **fail-open reducer failure**
+  counts (a reducer threw but the original output was preserved), and **growth-error** counts
+  (an attempted reduction grew the output). Pass-throughs can be opted out with
+  `HARNESSTRIM_TRACK_PASSTHROUGH=0`; reducer failures are still recorded whenever telemetry is
+  enabled because they are operational errors, not ordinary misses. Lines carry a schema version
+  and stable event id. Only counts/status are recorded, never tool payloads or reducer exception
+  messages.
 
 ## Try it
 
@@ -394,7 +396,7 @@ harness. "dry-run mode" here means the adapter logs what it *would* slim without
 | Claude Code | **Via the pipe / MCP** — the `PostToolUse` hook is spec-correct but Claude Code 2.1.37–2.1.212 don't apply `updatedToolOutput`, so `install claude` also adds a `CLAUDE.md` instruction to pipe noisy output through `harnesstrim reduce` (slims in-shell before the model sees it) and registers the MCP `reduce` tool. | keep the CLAUDE.md instruction / MCP registration | **on** — the pipe instruction uses `harnesstrim reduce --metrics .harnesstrim/metrics.jsonl`; the MCP server records too (`--metrics`) |
 | Codex | Default: model pipes through `harnesstrim reduce` or calls MCP `reduce`. Experimental `--hook`: automatically reduces supported Bash results. | `AGENTS.md` / MCP, project `--hook`, or global `--hook --global` for trusted projects | hook telemetry is written per project to `.harnesstrim/metrics.jsonl`; MCP/pipe telemetry is manual |
 | Hermes | **No** — starts in `dryrun` | set `HARNESSTRIM_MODE=active` in Hermes' persistent environment | off; set `HARNESSTRIM_TELEMETRY=1`, then run `harnesstrim metrics` |
-| Pi | **No** — starts in `dryrun` | set `HARNESSTRIM_MODE=active` **persistently** in Pi's environment | none yet (the extension only reduces) |
+| Pi | **No** — starts in `dryrun` | set `HARNESSTRIM_MODE=active` **persistently** in Pi's environment | set `--metrics <path>` at install or `HARNESSTRIM_METRICS=<path>`; receipts include reductions, pass-throughs and fail-open failures |
 
 Guidance: for the dry-run adapters (Hermes, Pi) keep the default while you confirm it slims the right
 things (watch stderr for `[harnesstrim] dryrun ...` lines), then flip to `active` persistently.
@@ -403,7 +405,7 @@ Telemetry is **off by default everywhere**; enable it only where you want a metr
 Telemetry lines are JSONL with a schema version and a stable event id, e.g.:
 
 ```jsonl
-{"schemaVersion":1,"eventId":"…","ts":"2026-08-01T…","harness":"opencode","tool":"bash","reducer":"test-output-slim","beforeChars":1410,"afterChars":124,"beforeTokens":null,"afterTokens":null}
+{"schemaVersion":1,"eventId":"…","ts":"2026-09-02T…","harness":"opencode","tool":"bash","reducer":"test-output-slim","beforeChars":1410,"afterChars":124,"changed":true,"reductionFailed":false,"beforeTokens":null,"afterTokens":null}
 ```
 
 `beforeTokens`/`afterTokens` are `null` unless the emitting path has real counts (no tokenizer runs in
