@@ -309,7 +309,7 @@ async function main(argv: string[]): Promise<number> {
                 })
               ) + "\n"
             );
-          } else if (attempt && trackPassThrough()) {
+          } else if (attempt && (attempt.reductionFailed || trackPassThrough())) {
             fs.appendFileSync(
               p,
               JSON.stringify(
@@ -317,10 +317,11 @@ async function main(argv: string[]): Promise<number> {
                   ts: new Date().toISOString(),
                   harness: which,
                   tool: attempt.tool,
-                  reducer: null,
+                  reducer: attempt.reducer,
                   beforeChars: attempt.beforeChars,
                   afterChars: attempt.beforeChars,
                   changed: false,
+                  reductionFailed: attempt.reductionFailed,
                 })
               ) + "\n"
             );
@@ -405,7 +406,10 @@ async function main(argv: string[]): Promise<number> {
                 })
               ) + "\n"
             );
-          } else if (trackPassThrough() && input.length >= (minLength ?? DEFAULT_MIN_LENGTH)) {
+          } else if (
+            result.reductionError !== undefined ||
+            (trackPassThrough() && input.length >= (minLength ?? DEFAULT_MIN_LENGTH))
+          ) {
             fs.appendFileSync(
               p,
               JSON.stringify(
@@ -413,10 +417,11 @@ async function main(argv: string[]): Promise<number> {
                   ts: new Date().toISOString(),
                   harness: "pipe",
                   tool: "reduce",
-                  reducer: null,
+                  reducer: result.reductionError?.reducer ?? null,
                   beforeChars: input.length,
                   afterChars: input.length,
                   changed: false,
+                  reductionFailed: result.reductionError !== undefined,
                   beforeTokens: countTokens(input),
                   afterTokens: countTokens(input),
                 })
@@ -430,7 +435,9 @@ async function main(argv: string[]): Promise<number> {
       if (values.stats) {
         const note = result.changed
           ? `${result.reducer}: ${result.beforeChars} -> ${result.afterChars} chars`
-          : "no reduction (no reducer matched or below min-length)";
+          : result.reductionError !== undefined
+            ? `${result.reductionError.reducer}: reducer failed; original output preserved`
+            : "no reduction (no reducer matched or below min-length)";
         console.error(`[harnesstrim reduce] ${note}`);
       }
       return 0;
