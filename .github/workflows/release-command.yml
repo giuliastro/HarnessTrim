@@ -1,0 +1,40 @@
+name: release command
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    name: dispatch validated release
+    if: >-
+      github.event.issue.pull_request == null &&
+      github.event.comment.user.login == github.repository_owner &&
+      startsWith(github.event.comment.body, '/release ')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Parse and validate tag
+        id: release
+        env:
+          BODY: ${{ github.event.comment.body }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          tag="${BODY#'/release '}"
+          tag="$(printf '%s' "$tag" | xargs)"
+          if ! printf '%s' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$'; then
+            echo "invalid release tag: $tag" >&2
+            exit 1
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch release workflow at tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: gh workflow run release.yml --ref "$TAG"
