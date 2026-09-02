@@ -111,7 +111,7 @@ function reduceViaCli(
       timeout: 30000,
     });
     if (r.status === 0 && typeof r.stdout === "string" && r.stdout.length > 0) {
-      const output = r.stdout.replace(/\n$/, "");
+      const output = r.stdout;
       const stderr = typeof r.stderr === "string" ? r.stderr : "";
       const reducer = parseReducer(stderr);
       return {
