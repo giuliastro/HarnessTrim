@@ -69,7 +69,7 @@ function reduce(
     });
     const stdout = typeof r.stdout === "string" ? r.stdout : "";
     const stderr = typeof r.stderr === "string" ? r.stderr : "";
-    const output = stdout.replace(/\n$/, "");
+    const output = stdout;
     if (r.status === 0 && output && output.length > 0) {
       return {
         output,
