@@ -1,0 +1,45 @@
+name: release bridge
+
+on:
+  push:
+    branches:
+      - 'release/v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-bridge-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: create validated release tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate release branch
+        id: release
+        shell: bash
+        run: |
+          version="$(node -p "require('./packages/cli/package.json').version")"
+          expected="release/v$version"
+          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
+            echo "release branch $GITHUB_REF_NAME does not match package version $version" >&2
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null 2>&1; then
+            echo "tag v$version already exists" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Create release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/tags/v$VERSION" \
+            -f sha="$GITHUB_SHA"
