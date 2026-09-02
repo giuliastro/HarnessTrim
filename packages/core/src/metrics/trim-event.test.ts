@@ -36,6 +36,7 @@ test("summarize handles empty input", () => {
   assert.deepEqual(s.byReducer, []);
   assert.deepEqual(s.byHarness, []);
   assert.equal(s.passThroughRate, 0);
+  assert.equal(s.reducerFailures, 0);
 });
 
 test("summarize counts pass-throughs, errors, and per-harness totals", () => {
@@ -57,6 +58,39 @@ test("summarize counts pass-throughs, errors, and per-harness totals", () => {
   assert.equal(s.byHarness[0].savedChars, 700);
   assert.equal(s.byHarness[2].harness, "pipe");
   assert.equal(s.byHarness[2].reductionPct, -50);
+});
+
+test("summarize separates fail-open reducer exceptions from ordinary pass-throughs", () => {
+  const s = summarize([
+    makeTrimEvent({
+      harness: "opencode",
+      tool: "bash",
+      reducer: "test-output-slim",
+      beforeChars: 1000,
+      afterChars: 1000,
+      changed: false,
+      reductionFailed: true,
+    }),
+    makeTrimEvent({
+      harness: "opencode",
+      tool: "read",
+      reducer: null,
+      beforeChars: 800,
+      afterChars: 800,
+      changed: false,
+    }),
+  ]);
+
+  assert.equal(s.events, 2);
+  assert.equal(s.reducerFailures, 1);
+  assert.equal(s.passThrough, 1);
+  assert.equal(s.passThroughRate, 50);
+  assert.equal(s.reduced, 0);
+  assert.equal(s.reductionErrors, 0);
+  assert.equal(s.byReducer[0]?.reducer, "test-output-slim");
+  assert.equal(s.byReducer[0]?.failures, 1);
+  assert.equal(s.byHarness[0]?.harness, "opencode");
+  assert.equal(s.byHarness[0]?.failures, 1);
 });
 
 test("parseTrimEvents skips blank and malformed lines", () => {
@@ -87,13 +121,31 @@ test("makeTrimEvent stamps the schema envelope (version 1, stable eventId, null 
   assert.equal(e.beforeTokens, null);
   assert.equal(e.afterTokens, null);
   assert.equal(e.changed, true);
+  assert.equal(e.reductionFailed, false);
   assert.ok(Number.isFinite(Date.parse(e.ts)));
 });
 
 test("makeTrimEvent records a pass-through with changed: false", () => {
   const e = makeTrimEvent({ harness: "opencode", tool: "bash", reducer: null, beforeChars: 50, afterChars: 50, changed: false });
   assert.equal(e.changed, false);
+  assert.equal(e.reductionFailed, false);
   assert.equal(e.reducer, null);
+});
+
+test("makeTrimEvent records fail-open status without an exception message", () => {
+  const e = makeTrimEvent({
+    harness: "opencode",
+    tool: "bash",
+    reducer: "test-output-slim",
+    beforeChars: 50,
+    afterChars: 50,
+    changed: false,
+    reductionFailed: true,
+  });
+  assert.equal(e.changed, false);
+  assert.equal(e.reductionFailed, true);
+  assert.equal(e.reducer, "test-output-slim");
+  assert.equal("message" in e, false);
 });
 
 test("makeTrimEvent carries token counts when the emitting path provides them", () => {
@@ -126,4 +178,5 @@ test("parseTrimEvents normalizes legacy lines (no schema) to schemaVersion 0 and
   assert.equal(parsed[0].beforeTokens, null);
   assert.equal(parsed[0].afterChars, 400);
   assert.equal(parsed[0].changed, true);
+  assert.equal(parsed[0].reductionFailed, false);
 });
