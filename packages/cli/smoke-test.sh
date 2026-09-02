@@ -29,6 +29,21 @@ TARBALL="$(ls "$WORK"/*.tgz 2>/dev/null | head -1)"
 [ -n "$TARBALL" ] || { echo "FAIL: npm pack produced no tarball"; exit 1; }
 echo "== smoke: packed $(basename "$TARBALL") =="
 
+# npm 11 performs an additional publish-time package.json normalization that
+# `npm pack` alone does not fully expose. v0.2.0 proved why this is a release
+# gate: "./dist/cli.mjs" packed and installed in this smoke test, but `npm publish`
+# stripped the bin mapping and shipped a package with no global command.
+PUBLISH_STDOUT="$WORK/publish-dry-run.json"
+PUBLISH_STDERR="$WORK/publish-dry-run.stderr"
+npm publish --dry-run --json >"$PUBLISH_STDOUT" 2>"$PUBLISH_STDERR" || {
+  cat "$PUBLISH_STDERR" >&2
+  fail "npm publish --dry-run failed"
+}
+if grep -Eq 'bin\[harnesstrim\].*(invalid|removed)|script name .* was invalid and removed' "$PUBLISH_STDERR"; then
+  cat "$PUBLISH_STDERR" >&2
+  fail "npm publish normalization would remove the harnesstrim bin"
+fi
+
 # 2. Install it into a fresh consumer project (zero transitive deps expected).
 PROJ="$WORK/consumer"
 mkdir -p "$PROJ"
@@ -45,7 +60,8 @@ fail() { echo "FAIL: $1"; exit 1; }
 
 # 3. --version prints a semver.
 V="$("$BIN" --version 2>&1)" || fail "--version exited non-zero ($V)"
-echo "$V" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+' || fail "--version did not print semver (got: $V)"
+EXPECTED_VERSION="$(node -p "require('$PKG_DIR/package.json').version")"
+[ "$V" = "$EXPECTED_VERSION" ] || fail "--version $V does not match package.json $EXPECTED_VERSION"
 echo "== smoke: --version -> $V =="
 
 # 4. doctor on a fresh dir (no crash, reports inspect).
