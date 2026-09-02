@@ -43,9 +43,21 @@ export function pickReducer(text: string): Reducer | null {
   return null;
 }
 
+export interface ReductionError {
+  readonly reducer: string;
+  readonly message: string;
+}
+
 export interface AutoReduceResult extends ReducerResult {
   /** Name of the reducer that ran, or null if none matched / input too short. */
   readonly reducer: string | null;
+  /**
+   * Present only when a matched reducer threw.
+   *
+   * Reduction is an optimization, never a correctness dependency: on failure the original input
+   * passes through byte-for-byte and adapters may record this metadata without reconstructing it.
+   */
+  readonly reductionError?: ReductionError;
 }
 
 /**
@@ -54,6 +66,29 @@ export interface AutoReduceResult extends ReducerResult {
  * `minLength`. Deterministic and idempotent, inheriting those guarantees from the
  * underlying reducers.
  */
+export function runReducerSafely(reducer: Reducer, text: string): AutoReduceResult {
+  try {
+    const result = reducer.reduce(text);
+    // Safety net: never emit output larger than the input. On tiny inputs a collapse
+    // marker can exceed the few lines it replaces; reduction must never backfire on
+    // cost or cache, so fall back to the original in that case.
+    if (!result.changed || result.output.length >= text.length) {
+      return { output: text, changed: false, reducer: null };
+    }
+    return { ...result, reducer: reducer.name };
+  } catch (error) {
+    return {
+      output: text,
+      changed: false,
+      reducer: null,
+      reductionError: {
+        reducer: reducer.name,
+        message: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
+}
+
 export function reduceAuto(text: string, minLength: number = DEFAULT_MIN_LENGTH): AutoReduceResult {
   if (text.length < minLength) {
     return { output: text, changed: false, reducer: null };
@@ -62,12 +97,5 @@ export function reduceAuto(text: string, minLength: number = DEFAULT_MIN_LENGTH)
   if (!reducer) {
     return { output: text, changed: false, reducer: null };
   }
-  const result = reducer.reduce(text);
-  // Safety net: never emit output larger than the input. On tiny inputs a collapse
-  // marker can exceed the few lines it replaces; reduction must never backfire on
-  // cost or cache, so fall back to the original in that case.
-  if (!result.changed || result.output.length >= text.length) {
-    return { output: text, changed: false, reducer: null };
-  }
-  return { ...result, reducer: reducer.name };
+  return runReducerSafely(reducer, text);
 }

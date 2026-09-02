@@ -352,6 +352,13 @@ telemetry and preserve benchmark signal recall.
 
 **Goal:** demonstrate savings across real multi-tool coding tasks without degrading task outcomes.
 
+**Reducer-runtime hardening:** the shared in-process dispatcher is fail-open: a reducer exception
+passes the original payload through byte-for-byte and exposes failure metadata instead of breaking
+the harness. Tier A is also promoted from a reduction/fidelity check to a release gate over four
+properties: 100% signal recall/audit, deterministic output, idempotent second pass, and p95 reducer
+latency ≤ 25 ms on every fixed fixture. This borrows the useful operational discipline of local
+token-optimizer products without introducing a mandatory proxy/daemon or another network hop.
+
 - Expand Tier B to multi-tool tasks, multiple output volumes, and repeated runs on fixed model
   versions. Report fresh input, cache reads, total billed tokens, success rate, and failure modes
   separately.

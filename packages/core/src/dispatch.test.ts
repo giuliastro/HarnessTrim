@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { pickReducer, reduceAuto, DEFAULT_MIN_LENGTH } from "./dispatch.ts";
+import { pickReducer, reduceAuto, runReducerSafely, DEFAULT_MIN_LENGTH } from "./dispatch.ts";
+import type { Reducer } from "./reducers/types.ts";
 
 const bigGitDiff =
   "diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml\n--- a/pnpm-lock.yaml\n+++ b/pnpm-lock.yaml\n@@ -1,2 +1,3 @@\n foo\n+bar\n" +
@@ -95,6 +96,41 @@ test("reduceAuto: never returns output larger than input (safety net)", () => {
     assert.equal(res.changed, false);
     assert.equal(res.reducer, null);
   }
+});
+
+test("runReducerSafely: reducer exceptions fail open byte-for-byte", () => {
+  const exploding: Reducer = {
+    name: "exploding-test-reducer",
+    reduce() {
+      throw new Error("synthetic reducer failure");
+    },
+  };
+  const input = "signal that must survive\n" + "x".repeat(DEFAULT_MIN_LENGTH);
+
+  const result = runReducerSafely(exploding, input);
+
+  assert.equal(result.output, input);
+  assert.equal(result.changed, false);
+  assert.equal(result.reducer, null);
+  assert.deepEqual(result.reductionError, {
+    reducer: "exploding-test-reducer",
+    message: "synthetic reducer failure",
+  });
+});
+
+test("runReducerSafely: a growing reducer also passes the original through", () => {
+  const growing: Reducer = {
+    name: "growing-test-reducer",
+    reduce(input) {
+      return { output: input + " extra", changed: true };
+    },
+  };
+  const input = "keep me exactly";
+  const result = runReducerSafely(growing, input);
+  assert.equal(result.output, input);
+  assert.equal(result.changed, false);
+  assert.equal(result.reducer, null);
+  assert.equal(result.reductionError, undefined);
 });
 
 test("reduceAuto: idempotent", () => {

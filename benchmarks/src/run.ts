@@ -1,6 +1,7 @@
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 import fs from "node:fs";
+import { performance } from "node:perf_hooks";
 import {
   fileListingSlim,
   genericTextSlim,
@@ -15,6 +16,15 @@ import { countTokens } from "./tokenizer.ts";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixturesDir = path.resolve(__dirname, "../fixtures");
 const reportPath = path.resolve(__dirname, "../reports/latest.json");
+
+const BENCH_WARMUP_ITERATIONS = 10;
+const BENCH_MEASURED_ITERATIONS = 100;
+/**
+ * Local reducers should be effectively invisible beside a harness/model round trip. p95 rather
+ * than max avoids making CI scheduling jitter a product regression while still catching runaway
+ * regex/algorithm changes.
+ */
+const LATENCY_P95_BUDGET_MS = 25;
 
 interface Fixture {
   file: string;
@@ -105,6 +115,12 @@ export interface BenchRow {
   mustKeepTotal: number;
   mustKeepKept: number;
   droppedSignalLines: string[];
+  deterministic: boolean;
+  idempotent: boolean;
+  latencyMedianMs: number;
+  latencyP95Ms: number;
+  latencyBudgetMs: number;
+  latencyOk: boolean;
 }
 
 export interface BenchReport {
@@ -118,11 +134,65 @@ export interface BenchReport {
   droppedSignalLines: number;
   /** True when every must-keep line survived and no signal-looking line was dropped. */
   fidelityOk: boolean;
+  determinismOk: boolean;
+  idempotencyOk: boolean;
+  latencyOk: boolean;
+  maxLatencyP95Ms: number;
+  /** Release gate: savings count only when fidelity, stability and local overhead all hold. */
+  integrityOk: boolean;
 }
 
 function pct(before: number, after: number): number {
   if (before === 0) return 0;
   return Math.round((1 - after / before) * 1000) / 10;
+}
+
+function roundMs(value: number): number {
+  return Math.round(value * 1000) / 1000;
+}
+
+function percentile(sorted: readonly number[], fraction: number): number {
+  if (sorted.length === 0) return 0;
+  const index = Math.max(0, Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1));
+  return sorted[index] ?? 0;
+}
+
+function measureReducer(reducer: Reducer, raw: string): {
+  deterministic: boolean;
+  idempotent: boolean;
+  latencyMedianMs: number;
+  latencyP95Ms: number;
+  latencyOk: boolean;
+} {
+  for (let iteration = 0; iteration < BENCH_WARMUP_ITERATIONS; iteration += 1) {
+    reducer.reduce(raw);
+  }
+
+  const baseline = reducer.reduce(raw);
+  const signature = JSON.stringify(baseline);
+  let deterministic = true;
+  const durations: number[] = [];
+
+  for (let iteration = 0; iteration < BENCH_MEASURED_ITERATIONS; iteration += 1) {
+    const started = performance.now();
+    const result = reducer.reduce(raw);
+    durations.push(performance.now() - started);
+    if (JSON.stringify(result) !== signature) deterministic = false;
+  }
+
+  const secondPass = reducer.reduce(baseline.output);
+  const idempotent = secondPass.output === baseline.output && secondPass.changed === false;
+  durations.sort((left, right) => left - right);
+  const latencyMedianMs = roundMs(percentile(durations, 0.5));
+  const latencyP95Ms = roundMs(percentile(durations, 0.95));
+
+  return {
+    deterministic,
+    idempotent,
+    latencyMedianMs,
+    latencyP95Ms,
+    latencyOk: latencyP95Ms <= LATENCY_P95_BUDGET_MS,
+  };
 }
 
 function auditDroppedSignal(raw: string, reduced: string): string[] {
@@ -149,6 +219,7 @@ export function runBench(): BenchReport {
     const beforeTokens = countTokens(raw);
     const afterTokens = countTokens(result.output);
     const mustKeepKept = mustKeep.filter((s) => result.output.includes(s)).length;
+    const stability = measureReducer(reducer, raw);
     return {
       fixture: file,
       reducer: reducer.name,
@@ -160,13 +231,15 @@ export function runBench(): BenchReport {
       mustKeepTotal: mustKeep.length,
       mustKeepKept,
       droppedSignalLines: auditDroppedSignal(raw, result.output),
+      ...stability,
+      latencyBudgetMs: LATENCY_P95_BUDGET_MS,
     };
   });
 
   for (const row of rows) {
     const recall = row.mustKeepTotal === 0 ? 100 : Math.round((row.mustKeepKept / row.mustKeepTotal) * 100);
     console.log(
-      `${row.fixture.padEnd(34)} ${row.reducer.padEnd(18)} tokens ${String(row.beforeTokens).padStart(5)} -> ${String(row.afterTokens).padStart(5)}  (-${row.tokenReductionPct}%)  signal ${row.mustKeepKept}/${row.mustKeepTotal} (${recall}%)`
+      `${row.fixture.padEnd(34)} ${row.reducer.padEnd(18)} tokens ${String(row.beforeTokens).padStart(5)} -> ${String(row.afterTokens).padStart(5)}  (-${row.tokenReductionPct}%)  signal ${row.mustKeepKept}/${row.mustKeepTotal} (${recall}%)  stable ${row.deterministic ? "yes" : "NO"}  idem ${row.idempotent ? "yes" : "NO"}  p95 ${row.latencyP95Ms.toFixed(3)}ms`
     );
     for (const dropped of row.droppedSignalLines) {
       console.log(`    ! dropped signal-looking line: ${dropped}`);
@@ -181,11 +254,23 @@ export function runBench(): BenchReport {
   const droppedSignalLines = rows.reduce((s, r) => s + r.droppedSignalLines.length, 0);
   const signalRecallPct = signalTotal === 0 ? 100 : Math.round((signalKept / signalTotal) * 1000) / 10;
   const fidelityOk = signalKept === signalTotal && droppedSignalLines === 0;
+  const determinismOk = rows.every((row) => row.deterministic);
+  const idempotencyOk = rows.every((row) => row.idempotent);
+  const latencyOk = rows.every((row) => row.latencyOk);
+  const maxLatencyP95Ms = roundMs(Math.max(0, ...rows.map((row) => row.latencyP95Ms)));
+  const integrityOk = fidelityOk && determinismOk && idempotencyOk && latencyOk;
 
-  console.log(`\nTokens:  ${totalBefore} -> ${totalAfter} (-${overallPct}%)`);
-  console.log(`Signal:  ${signalKept}/${signalTotal} must-keep lines preserved (${signalRecallPct}% recall)`);
-  console.log(`Audit:   ${droppedSignalLines} dropped line(s) that look like signal`);
-  console.log(`Verdict: ${fidelityOk ? "fidelity OK — token savings preserve the signal" : "FIDELITY FAILURE — signal lost, see above"}`);
+  console.log(`\nTokens:       ${totalBefore} -> ${totalAfter} (-${overallPct}%)`);
+  console.log(`Signal:       ${signalKept}/${signalTotal} must-keep lines preserved (${signalRecallPct}% recall)`);
+  console.log(`Audit:        ${droppedSignalLines} dropped line(s) that look like signal`);
+  console.log(`Determinism:  ${determinismOk ? "OK" : "FAILURE"}`);
+  console.log(`Idempotency:  ${idempotencyOk ? "OK" : "FAILURE"}`);
+  console.log(
+    `Latency:      ${latencyOk ? "OK" : "FAILURE"} — max fixture p95 ${maxLatencyP95Ms.toFixed(3)}ms (budget ${LATENCY_P95_BUDGET_MS}ms)`
+  );
+  console.log(
+    `Verdict:      ${integrityOk ? "integrity OK — savings preserve signal, stability and latency budget" : "INTEGRITY FAILURE — see failed gate above"}`
+  );
 
   fs.mkdirSync(path.dirname(reportPath), { recursive: true });
   const report: BenchReport = {
@@ -198,6 +283,11 @@ export function runBench(): BenchReport {
     signalRecallPct,
     droppedSignalLines,
     fidelityOk,
+    determinismOk,
+    idempotencyOk,
+    latencyOk,
+    maxLatencyP95Ms,
+    integrityOk,
   };
   fs.writeFileSync(reportPath, JSON.stringify(report, null, 2) + "\n");
   console.log(`\nReport written to ${path.relative(process.cwd(), reportPath)}`);
@@ -207,6 +297,7 @@ export function runBench(): BenchReport {
 // Auto-run when executed directly (node src/run.ts), but not when imported.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const report = runBench();
-  // A benchmark that silently loses signal is worse than useless — fail loudly.
-  if (!report.fidelityOk) process.exitCode = 1;
+  // A saving that loses signal, changes unpredictably, fails idempotency or consumes excessive
+  // local latency is not an optimization. Release CI uses this as a product-integrity gate.
+  if (!report.integrityOk) process.exitCode = 1;
 }
