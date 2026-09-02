@@ -23,6 +23,10 @@ import { randomUUID } from "node:crypto";
  * pass-through (an attempted reduction that changed nothing) so `metrics` can report a
  * pass-through rate — the denominator for deciding which noisy-output classes still need
  * a reducer. Legacy lines without the field normalize to `changed: true`.
+ *
+ * Runtime hardening (2026-09-02): additive `reductionFailed` field. A reducer exception
+ * is fail-open, so the original payload still reaches the harness; telemetry records only
+ * that the reducer failed and its reducer name. Exception messages/payloads are never persisted.
  */
 export const TRIM_EVENT_SCHEMA_VERSION = 1;
 
@@ -43,6 +47,8 @@ export interface TrimEvent {
   afterChars: number;
   /** True when the attempt actually changed the output; false marks a recorded pass-through. */
   changed: boolean;
+  /** True only when a matched reducer threw and the original payload passed through unchanged. */
+  reductionFailed: boolean;
   /** Token count before reduction, only when the emitting path has one; else null. */
   beforeTokens: number | null;
   /** Token count after reduction, only when the emitting path has one; else null. */
@@ -53,14 +59,18 @@ export interface TrimEvent {
  * Build a fully-formed, schema-versioned TrimEvent. Producers should use this instead of
  * hand-rolling the envelope so `schemaVersion`/`eventId` cannot drift between adapters.
  * Token counts default to null (measured only where the emitting path has a tokenizer);
- * `changed` defaults true (reduced) and is set false for recorded pass-throughs.
+ * `changed` defaults true (reduced), while `reductionFailed` defaults false.
  */
 export function makeTrimEvent(
-  partial: Omit<TrimEvent, "schemaVersion" | "eventId" | "ts" | "beforeTokens" | "afterTokens" | "changed"> & {
+  partial: Omit<
+    TrimEvent,
+    "schemaVersion" | "eventId" | "ts" | "beforeTokens" | "afterTokens" | "changed" | "reductionFailed"
+  > & {
     ts?: string;
     beforeTokens?: number | null;
     afterTokens?: number | null;
     changed?: boolean;
+    reductionFailed?: boolean;
   }
 ): TrimEvent {
   return {
@@ -73,6 +83,7 @@ export function makeTrimEvent(
     beforeChars: partial.beforeChars,
     afterChars: partial.afterChars,
     changed: partial.changed ?? true,
+    reductionFailed: partial.reductionFailed ?? false,
     beforeTokens: partial.beforeTokens ?? null,
     afterTokens: partial.afterTokens ?? null,
   };
@@ -81,6 +92,8 @@ export function makeTrimEvent(
 export interface ReducerBreakdown {
   reducer: string;
   count: number;
+  /** Fail-open exceptions attributed to this reducer. */
+  failures: number;
   beforeChars: number;
   afterChars: number;
   savedChars: number;
@@ -89,6 +102,8 @@ export interface ReducerBreakdown {
 export interface HarnessBreakdown {
   harness: string;
   count: number;
+  /** Fail-open reducer exceptions observed on this harness. */
+  failures: number;
   beforeChars: number;
   afterChars: number;
   savedChars: number;
@@ -113,6 +128,8 @@ export interface TrimSummary {
   passThrough: number;
   /** Percent of recorded attempts that were pass-throughs, one decimal place. */
   passThroughRate: number;
+  /** Fail-open reducer exceptions; original payloads were preserved. */
+  reducerFailures: number;
   /** Attempts recorded as changed that GROW the output — reducer bugs worth fixing. */
   reductionErrors: number;
   /** Total growth in chars across reduction errors. */
@@ -135,6 +152,7 @@ export function summarize(events: TrimEvent[]): TrimSummary {
   let afterChars = 0;
   let reduced = 0;
   let passThrough = 0;
+  let reducerFailures = 0;
   let reductionErrors = 0;
   let grewChars = 0;
   const byReducerMap = new Map<string, ReducerBreakdown>();
@@ -143,7 +161,9 @@ export function summarize(events: TrimEvent[]): TrimSummary {
   for (const e of events) {
     beforeChars += e.beforeChars;
     afterChars += e.afterChars;
-    if (e.changed === false) {
+    if (e.reductionFailed) {
+      reducerFailures++;
+    } else if (e.changed === false) {
       passThrough++;
     } else if (e.afterChars > e.beforeChars) {
       reductionErrors++;
@@ -155,8 +175,17 @@ export function summarize(events: TrimEvent[]): TrimSummary {
     const harness = e.harness ?? "unknown";
     const h =
       byHarnessMap.get(harness) ??
-      { harness, count: 0, beforeChars: 0, afterChars: 0, savedChars: 0, reductionPct: 0 };
+      {
+        harness,
+        count: 0,
+        failures: 0,
+        beforeChars: 0,
+        afterChars: 0,
+        savedChars: 0,
+        reductionPct: 0,
+      };
     h.count += 1;
+    if (e.reductionFailed) h.failures += 1;
     h.beforeChars += e.beforeChars;
     h.afterChars += e.afterChars;
     h.savedChars += e.beforeChars - e.afterChars;
@@ -165,8 +194,16 @@ export function summarize(events: TrimEvent[]): TrimSummary {
     if (e.reducer === null) continue;
     const b =
       byReducerMap.get(e.reducer) ??
-      { reducer: e.reducer, count: 0, beforeChars: 0, afterChars: 0, savedChars: 0 };
+      {
+        reducer: e.reducer,
+        count: 0,
+        failures: 0,
+        beforeChars: 0,
+        afterChars: 0,
+        savedChars: 0,
+      };
     b.count += 1;
+    if (e.reductionFailed) b.failures += 1;
     b.beforeChars += e.beforeChars;
     b.afterChars += e.afterChars;
     b.savedChars += e.beforeChars - e.afterChars;
@@ -189,6 +226,7 @@ export function summarize(events: TrimEvent[]): TrimSummary {
     reduced,
     passThrough,
     passThroughRate: events.length === 0 ? 0 : Math.round((passThrough / events.length) * 1000) / 10,
+    reducerFailures,
     reductionErrors,
     grewChars,
   };
@@ -240,6 +278,7 @@ function normalize(v: TrimEvent): TrimEvent {
     beforeChars: v.beforeChars,
     afterChars: v.afterChars,
     changed: typeof v.changed === "boolean" ? v.changed : true,
+    reductionFailed: typeof v.reductionFailed === "boolean" ? v.reductionFailed : false,
     beforeTokens: typeof v.beforeTokens === "number" ? v.beforeTokens : null,
     afterTokens: typeof v.afterTokens === "number" ? v.afterTokens : null,
   };
