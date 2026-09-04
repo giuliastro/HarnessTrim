@@ -7,3 +7,4 @@ export { fileListingSlim } from "./file-listing-slim.ts";
 export { cronOutputSlim } from "./cron-output-slim.ts";
 export { lintOutputSlim } from "./lint-output-slim.ts";
 export { ciLogSlim } from "./ci-log-slim.ts";
+export { packageManagerOutputSlim } from "./package-manager-output-slim.ts";
