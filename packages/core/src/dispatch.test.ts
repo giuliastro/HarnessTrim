@@ -10,12 +10,36 @@ const bigGitDiff =
 const bigTestOutput =
   "PASS a\n".repeat(20) + "Tests:       1 failed, 19 passed, 20 total\n" + "y".repeat(DEFAULT_MIN_LENGTH);
 
+const bigCiLog =
+  "##[group]Run actions/checkout@v4\n" +
+  [
+    "Syncing repository: giuliastro/HarnessTrim",
+    "Getting Git version info",
+    "Temporarily overriding HOME=/home/runner/work/_temp/abc before making global git config changes",
+    "Adding repository directory to the temporary git global config as a safe directory",
+    "/usr/bin/git config --global --add safe.directory /home/runner/work/HarnessTrim/HarnessTrim",
+    "Disabling automatic garbage collection",
+    "Setting up auth",
+    "Fetching the repository",
+    "Determining the checkout info",
+    "Checking out the ref",
+  ].join("\n") +
+  "\n##[endgroup]\nFAIL src/example.test.ts\nTests:       1 failed, 19 passed, 20 total\n";
+
 test("pickReducer: detects git diff", () => {
   assert.equal(pickReducer(bigGitDiff)?.name, "git-diff-slim");
 });
 
 test("pickReducer: detects test output", () => {
   assert.equal(pickReducer(bigTestOutput)?.name, "test-output-slim");
+});
+
+test("pickReducer: detects full CI logs before embedded test output", () => {
+  assert.ok(bigCiLog.length >= 400, `expected length >= 400, got ${bigCiLog.length}`);
+  assert.equal(pickReducer(bigCiLog)?.name, "ci-log-slim");
+  const result = reduceAuto(bigCiLog);
+  assert.equal(result.reducer, "ci-log-slim");
+  assert.match(result.output, /FAIL src\/example\.test\.ts/);
 });
 
 test("pickReducer: detects long-form text", () => {
