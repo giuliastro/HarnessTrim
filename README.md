@@ -181,10 +181,11 @@ with **signal fidelity**, **determinism**, **idempotency**, and **p95 local late
 that must survive (the error, the failing test, the assertion, the changed files, the summary), it
 measures how many are kept and audits any dropped line that looks like signal. The latency budget is
 25 ms p95 per fixed fixture, with warm-up and repeated measurements to avoid treating one scheduler
-spike as a regression. Current Tier A headline: **−76.6% tokens at 100% signal recall** across the
-seven fixed fixtures (`pnpm run bench`, no LLM), including the lint-warning reducer added after the
-original six-fixture baseline. The bench fails loudly if fidelity, determinism, idempotency, or the
-latency budget regresses.
+spike as a regression. Current Tier A headline: **−72.5% tokens at 100% signal recall** across nine
+fixed fixtures (`pnpm run bench`, no LLM). The suite now includes realistic GitHub Actions and pnpm
+install output. Those shapes are less compressible than the earlier warning-heavy mix, so the broader
+blended percentage is lower than the old seven-fixture headline while covering more real tool-output
+patterns. The bench fails loudly if fidelity, determinism, idempotency, or the latency budget regresses.
 
   | Fixture | Reducer | Tokens | Reduction | Signal kept |
   | --- | --- | --- | --- | --- |
@@ -195,10 +196,14 @@ latency budget regresses.
   | file listing (long) | file-listing-slim | 508 → 190 | −62.6% | 3/3 |
   | daily briefing (prose) | generic-text-slim | 196 → 150 | −23.5% | 3/3 |
   | eslint warning wall | lint-output-slim | 2221 → 127 | −94.3% | 5/5 |
-  | **Measured blend** | | 5194 → 1217 | **−76.6%** | **29/29 (100%)** |
+  | GitHub Actions log | ci-log-slim | 467 → 284 | −39.2% | 6/6 |
+  | pnpm install progress | package-manager-output-slim | 420 → 173 | −58.8% | 5/5 |
+  | **Measured blend** | | 6081 → 1674 | **−72.5%** | **40/40 (100%)** |
 
-Each fixture's must-keep lines are annotated in [`benchmarks/src/run.ts`](benchmarks/src/run.ts), so
-"what survives" is explicit and reproducible, not a claim.
+The same Tier A run reports zero dropped signal-looking lines, deterministic and idempotent output,
+and a maximum fixture p95 of 0.159 ms against the 25 ms budget. Each fixture's must-keep lines are
+annotated in [`benchmarks/src/run.ts`](benchmarks/src/run.ts), so "what survives" is explicit and
+reproducible, not a claim.
 
 - **One live OpenCode session:** a real `bash` test run was reduced **1410 → 124 chars (−91.2%)** in the
   actual pipeline, with the FAIL line and summary preserved (see PLAN.md §9, Phase 2 hardening).
@@ -258,10 +263,11 @@ xychart-beta
 ```
 
 > **Why the model is plausible but unproven:** the tool-output lever (the largest slice) is already
-> backed by the measured −63%/−91.2% numbers above. The other levers are extrapolated from vendor
-> documentation on reasoning-token billing, prompt caching, and progressive disclosure. The Tier B
-> end-to-end benchmark (planned) will replace this section's hypotheses with measured, quality-checked
-> numbers comparing *vanilla harness* vs *harness + HarnessTrim*.
+> backed by the measured Tier A suite and the −91.2% live OpenCode reduction above. The other levers
+> are extrapolated from vendor documentation on reasoning-token billing, prompt caching, and
+> progressive disclosure. The Tier B end-to-end benchmark (planned) will replace this section's
+> hypotheses with measured, quality-checked numbers comparing *vanilla harness* vs *harness +
+> HarnessTrim*.
 
 ---
 
@@ -278,7 +284,8 @@ The CLI is **published on npm** (`npx harnesstrim`) as a single self-contained b
 End-to-end Tier B runs on OpenCode (two tasks × two runs, quality retained in all 8) measured billed-token
 savings of **~2% on a tiny one-tool-call task and ~22–25% on a large-noisy-output task**, with the prompt
 cache preserved — the blended win scales with noisy-output volume vs fixed overhead. A larger multi-model,
-multi-tool-call study is the remaining Tier B work. 175 tests passing, typecheck clean on all packages.
+multi-tool-call study is the remaining Tier B work. Test, typecheck, benchmark and clean-package smoke
+gates run in CI rather than being summarized here as a stale hard-coded test count.
 Installers support **narrowing** (skills-only installs via `--no-hook`/`--no-instructions`, OpenCode
 `--mode`/`--min-length`/`--tools` baked into the wrapper), `doctor`/`install`/`metrics` emit **`--json`**,
 `capabilities` reports per-harness surfaces/write-sets as JSON, and `uninstall` reverses an install
