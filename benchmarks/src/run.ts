@@ -9,6 +9,7 @@ import {
   gitDiffSlim,
   jsonOutputSlim,
   lintOutputSlim,
+  packageManagerOutputSlim,
   testOutputSlim,
   type Reducer,
 } from "@harnesstrim/core";
@@ -108,6 +109,17 @@ const FIXTURES: Fixture[] = [
       "Tests:       1 failed, 47 passed, 48 total", // test summary
       "Error: Process completed with exit code 1.", // runner-level failure
       "warning: cache restore was skipped because the test step failed", // warning signal
+    ],
+  },
+  {
+    file: "package-manager/pnpm-install.txt",
+    reducer: packageManagerOutputSlim,
+    mustKeep: [
+      "Packages: +125", // package-count summary
+      "WARN deprecated inflight@1.0.6", // warning signal
+      "Progress: resolved 125, reused 119, downloaded 6, added 125, done", // final state
+      "+ typescript 5.9.3", // installed-package identity
+      "Done in 1.8s using pnpm v10.33.4", // completion/timing
     ],
   },
 ];
