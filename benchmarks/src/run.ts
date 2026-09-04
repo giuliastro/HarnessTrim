@@ -3,6 +3,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { performance } from "node:perf_hooks";
 import {
+  ciLogSlim,
   fileListingSlim,
   genericTextSlim,
   gitDiffSlim,
@@ -95,6 +96,18 @@ const FIXTURES: Fixture[] = [
       "20 files checked, 10 had style suggestions",
       "no-console ×10", // which rules fired, aggregated
       "Run eslint --fix to apply automatic fixes.", // the actionable next step
+    ],
+  },
+  {
+    file: "ci/github-actions-log.txt",
+    reducer: ciLogSlim,
+    mustKeep: [
+      "##[group]Run pnpm test", // step identity
+      "FAIL packages/core/src/example.test.ts", // failing suite
+      "AssertionError: expected signal to survive", // failure reason
+      "Tests:       1 failed, 47 passed, 48 total", // test summary
+      "Error: Process completed with exit code 1.", // runner-level failure
+      "warning: cache restore was skipped because the test step failed", // warning signal
     ],
   },
 ];

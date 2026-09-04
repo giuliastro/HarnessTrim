@@ -6,3 +6,4 @@ export { jsonOutputSlim } from "./json-output-slim.ts";
 export { fileListingSlim } from "./file-listing-slim.ts";
 export { cronOutputSlim } from "./cron-output-slim.ts";
 export { lintOutputSlim } from "./lint-output-slim.ts";
+export { ciLogSlim } from "./ci-log-slim.ts";

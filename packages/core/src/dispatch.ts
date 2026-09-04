@@ -6,6 +6,7 @@ import { jsonOutputSlim } from "./reducers/json-output-slim.ts";
 import { fileListingSlim } from "./reducers/file-listing-slim.ts";
 import { cronOutputSlim } from "./reducers/cron-output-slim.ts";
 import { lintOutputSlim } from "./reducers/lint-output-slim.ts";
+import { ciLogSlim } from "./reducers/ci-log-slim.ts";
 
 /** Below this length, reducing isn't worth it and risks churning small, stable content. */
 export const DEFAULT_MIN_LENGTH = 400;
@@ -18,6 +19,9 @@ const JSON_RE = /^\s*[\[{]/m;
 // File listing: ls permissions, find ./path, real tree branches, or search_files output
 const FILE_LISTING_RE = /(?:^total\s+\d+|^[\-bcdlsp][\-r][\-w][\-xs\-][\-r][\-w][\-xs\-][\-r][\-w][\-xs\-]|^\.\/(?:\.|[^.\s])|^\s*(?:├──|└──|│\s+)|^[\w.\/\-]+\.[a-zA-Z]{1,4}:\d+\|)/m;
 const CRON_OUTPUT_RE = /^# Cron Job:.*\n[\s\S]*^## Prompt\s*$[\s\S]*^## Response\s*$/m;
+// GitHub Actions / `gh run view --log` markers. The reducer itself only removes known-benign
+// setup/debug lines and preserves failures, warnings and exit codes.
+const CI_LOG_RE = /##\[(?:debug|group|endgroup)\]|(?:^|\t)(?:Syncing repository:|Post job cleanup\.)/m;
 // Lint-warning wall: repeated `path:line:col severity rule ...` lines (eslint/tsc/pylint style).
 const LINT_OUTPUT_RE = /^[\w.\/\\-]+:\d+:\d+\s+(?:warning|error)\s+[\w@.\/-]+\s/m;
 // Long-form text: has long prose paragraphs (lines of text without structural markers).
@@ -32,6 +36,9 @@ const LONG_TEXT_RE = /^#{1,4}\s.*\n(?:(?!^#{1,4}\s|^diff --git |^```).*\n){5,}/m
  */
 export function pickReducer(text: string): Reducer | null {
   if (GIT_DIFF_RE.test(text)) return gitDiffSlim;
+  // A full CI transcript may contain test FAIL/PASS lines; select the CI reducer first because it
+  // trims only surrounding runner boilerplate and leaves the embedded test signal untouched.
+  if (CI_LOG_RE.test(text) && text.length >= 400) return ciLogSlim;
   if (TEST_OUTPUT_RE.test(text)) return testOutputSlim;
   // A Hermes cron archive embeds arbitrary prompts/skills, so identify it before
   // inspecting JSON or listing-looking lines inside that archival prompt.

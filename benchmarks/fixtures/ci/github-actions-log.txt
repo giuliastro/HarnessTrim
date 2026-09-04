@@ -1,0 +1,54 @@
+##[group]Run actions/checkout@v4
+Syncing repository: giuliastro/HarnessTrim
+Getting Git version info
+Temporarily overriding HOME=/home/runner/work/_temp/9d69 before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+/usr/bin/git config --global --add safe.directory /home/runner/work/HarnessTrim/HarnessTrim
+Disabling automatic garbage collection
+Setting up auth
+Fetching the repository
+Determining the checkout info
+Checking out the ref
+##[endgroup]
+##[group]Run pnpm install --frozen-lockfile
+##[debug]Evaluating condition for step: install
+##[debug]Starting: install
+##[debug]Loading inputs
+##[debug]Loading env
+##[debug]Starting process
+##[debug]Process started with process id 2189
+##[debug]Waiting for process exit
+##[debug]Process exited with code 0
+Lockfile is up to date, resolution step is skipped
+Packages: +412
+Done in 6.8s
+##[endgroup]
+##[group]Run pnpm test
+##[debug]Evaluating condition for step: test
+##[debug]Starting: test
+##[debug]Loading inputs
+##[debug]Loading env
+##[debug]Starting process
+##[debug]Process started with process id 2240
+FAIL packages/core/src/example.test.ts
+  reducer safety
+    ✕ preserves the failing signal (12 ms)
+
+  ● reducer safety › preserves the failing signal
+
+    AssertionError: expected signal to survive
+      at packages/core/src/example.test.ts:42:12
+
+Tests:       1 failed, 47 passed, 48 total
+##[debug]Process exited with code 1
+##[debug]Finishing: test
+Error: Process completed with exit code 1.
+##[endgroup]
+##[group]Post Run actions/checkout@v4
+Post job cleanup.
+##[debug]Getting repository cleanup state
+##[debug]Removing auth header
+##[debug]Restoring HOME
+Cleaning up orphan processes
+warning: cache restore was skipped because the test step failed
+##[endgroup]
