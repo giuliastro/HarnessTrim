@@ -7,6 +7,7 @@ import { fileListingSlim } from "./reducers/file-listing-slim.ts";
 import { cronOutputSlim } from "./reducers/cron-output-slim.ts";
 import { lintOutputSlim } from "./reducers/lint-output-slim.ts";
 import { ciLogSlim } from "./reducers/ci-log-slim.ts";
+import { packageManagerOutputSlim } from "./reducers/package-manager-output-slim.ts";
 
 /** Below this length, reducing isn't worth it and risks churning small, stable content. */
 export const DEFAULT_MIN_LENGTH = 400;
@@ -24,6 +25,9 @@ const CRON_OUTPUT_RE = /^# Cron Job:.*\n[\s\S]*^## Prompt\s*$[\s\S]*^## Response
 const CI_LOG_RE = /##\[(?:debug|group|endgroup)\]|(?:^|\t)(?:Syncing repository:|Post job cleanup\.)/m;
 // Lint-warning wall: repeated `path:line:col severity rule ...` lines (eslint/tsc/pylint style).
 const LINT_OUTPUT_RE = /^[\w.\/\\-]+:\d+:\d+\s+(?:warning|error)\s+[\w@.\/-]+\s/m;
+// pnpm install/update output. The reducer requires at least three exact progress snapshots before
+// changing anything, so one incidental matching line cannot trigger a rewrite.
+const PACKAGE_MANAGER_OUTPUT_RE = /^Progress:\s+resolved\s+\d+,\s+reused\s+\d+,\s+downloaded\s+\d+,\s+added\s+\d+(?:,\s+done)?\s*$/m;
 // Long-form text: has long prose paragraphs (lines of text without structural markers).
 // Used as lowest-priority catch-all for briefings, reports, feature ideas, etc.
 const LONG_TEXT_RE = /^#{1,4}\s.*\n(?:(?!^#{1,4}\s|^diff --git |^```).*\n){5,}/m;
@@ -44,6 +48,7 @@ export function pickReducer(text: string): Reducer | null {
   // inspecting JSON or listing-looking lines inside that archival prompt.
   if (CRON_OUTPUT_RE.test(text) && text.length >= 400) return cronOutputSlim;
   if (LINT_OUTPUT_RE.test(text) && text.length >= 400) return lintOutputSlim;
+  if (PACKAGE_MANAGER_OUTPUT_RE.test(text) && text.length >= 400) return packageManagerOutputSlim;
   if (JSON_RE.test(text) && text.length >= 400) return jsonOutputSlim;
   if (FILE_LISTING_RE.test(text) && text.length >= 400) return fileListingSlim;
   if (LONG_TEXT_RE.test(text) && text.length >= 1000) return genericTextSlim;
