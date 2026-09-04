@@ -1,0 +1,31 @@
+Scope: all 6 workspace projects
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Progress: resolved 8, reused 6, downloaded 2, added 4
+Progress: resolved 17, reused 13, downloaded 4, added 11
+Progress: resolved 29, reused 24, downloaded 5, added 20
+Progress: resolved 41, reused 35, downloaded 6, added 31
+Packages: +125
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 54, reused 48, downloaded 6, added 43
+Progress: resolved 67, reused 61, downloaded 6, added 56
+WARN deprecated inflight@1.0.6: This module is not supported and leaks memory
+Progress: resolved 79, reused 73, downloaded 6, added 68
+Progress: resolved 91, reused 85, downloaded 6, added 80
+Progress: resolved 102, reused 96, downloaded 6, added 91
+Progress: resolved 111, reused 105, downloaded 6, added 102
+Progress: resolved 118, reused 112, downloaded 6, added 111
+Progress: resolved 122, reused 116, downloaded 6, added 118
+Progress: resolved 125, reused 119, downloaded 6, added 122
+Progress: resolved 125, reused 119, downloaded 6, added 124
+Progress: resolved 125, reused 119, downloaded 6, added 125, done
+
+devDependencies:
++ @eslint/js 9.39.1
++ @types/node 24.7.0
++ eslint 9.39.1
++ prettier 3.6.2
++ typescript 5.9.3
++ vitest 3.2.4
+
+Done in 1.8s using pnpm v10.33.4
