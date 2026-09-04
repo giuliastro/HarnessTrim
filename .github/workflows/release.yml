@@ -34,7 +34,7 @@ jobs:
       - name: CLI build
         run: node packages/cli/build.mjs
       - name: Clean-package smoke test (npm pack -> fresh install)
-        run: bash packages/cli/smoke-test.sh
+        run: bash packages/cli/smoke-test-gate.sh
 
   publish:
     name: publish
