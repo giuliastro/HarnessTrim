@@ -1,551 +1,192 @@
 # HarnessTrim
 
-> One token policy for Claude Code, Codex, OpenCode, Hermes Agent and Pi.
+**Less tool-output noise. More room for the code and evidence that matter.**
 
-HarnessTrim is a **cross-harness control plane** for coding agents: a portable skill pack, thin
-per-harness adapters, and a reproducible benchmark suite that together cut input tokens, output
-tokens, and noisy tool output, instead of optimizing just one of those layers the way existing
-tools do.
+HarnessTrim is a local, cross-harness optimizer for Codex, Claude Code, OpenCode, Hermes,
+Pi and OMP. It combines deterministic output reducers, native integrations, portable
+skills, and reproducible benchmarks. It does not replace your coding agent or choose a
+cheaper model behind your back.
 
-Full design rationale and phased roadmap: see [PLAN.md](PLAN.md).
+## Start with Codex or Claude
 
----
-
-## Quick start
-
-No checkout required — run the CLI straight from npm:
+Install the CLI on the PATH used by your harness:
 
 ```sh
-npx harnesstrim doctor                  # diagnose token waste in the current project
-npx harnesstrim install claude --apply  # install an adapter (dry-run without --apply)
-npm test 2>&1 | npx harnesstrim reduce  # slim noisy tool output through a pipe
+npm install -g harnesstrim@0.3.0
+harnesstrim doctor
+
+# Run inside your project. Omit --apply to preview all writes.
+harnesstrim install claude --apply
+harnesstrim install codex --apply
+
+# Optional: automatic Codex Bash reduction, after reviewing/trusting the hook.
+harnesstrim install codex --hook --apply
 ```
 
-The published package is a single self-contained bundle (no runtime dependencies); the skill pack
-and the Hermes/Pi plugin files ship inside it. `bench` is the one command that needs a checkout (it
-reads the repo's benchmark fixtures).
+Claude installation adds a Bash PostToolUse hook, skills and a marker-guarded `CLAUDE.md`
+instruction. Codex's default installs skills and an `AGENTS.md` pipe instruction;
+`--hook` explicitly adds automatic Bash handling. Reload the harness after installation.
+An existing installation that runs `harnesstrim` on PATH uses the upgraded CLI without
+rewriting its stable instruction block. See [upgrade details](docs/releases/0.3.0.md).
 
-### From a checkout (for development)
+For one-off diagnosis, `npx harnesstrim doctor` needs no permanent installation. Persistent
+hooks still need a resolvable executable: an ephemeral npx invocation is not a global install.
+
+## What 0.3.0 improves
+
+**Claude output that keeps its shape.** Bash replacements preserve the original object,
+including stderr, exit codes, interruption flags and unknown metadata. Earlier code returned
+only a string, which does not satisfy the documented built-in output schema.
+
+**Codex feedback without losing failures.** The optional Bash hook retains the complete
+response envelope and uses `continue: false` plus `stopReason`. It does not use the
+`decision: block` response that can reject a nested code-mode tool promise. Unsupported
+events, image/rich results and unfamiliar shapes pass through unchanged.
+
+**Safer test compression.** Passing-test lines are removed only when recognized. Long
+assertion diffs, unknown output, warnings, command status and the entire failure tail are
+kept. A new Node TAP reducer compresses flat successful subtests without flattening suites
+or hiding skip/todo, bailouts or diagnostics.
+
+**Faster local execution.** MCP and token counting load on demand. Only the cl100k vocabulary
+is bundled. The initial static CLI graph is about 133 KiB instead of the previous 6.3 MiB
+single bundle; a build gate prevents regression beyond 256 KiB. The package still has
+zero runtime dependencies and includes every lazy chunk and adapter asset.
+
+## Measured evidence, with boundaries
+
+These are deterministic fixture results, **not promises about total session bills or coding
+success**. Token counts use `cl100k_base`, not a Claude-specific billing tokenizer.
+
+| Tier A fixture | Before -> after tokens | Reduction | Required signal retained |
+| --- | ---: | ---: | ---: |
+| Node TAP, 40 successes and one failure | 1666 -> 208 | 87.5% | 8/8 |
+| Jest, mostly passing | 408 -> 206 | 49.5% | 6/6 |
+| pytest, mostly passing | 395 -> 215 | 45.6% | 5/5 |
+| Lockfile-heavy diff | 939 -> 183 | 80.5% | 4/4 |
+| JSON array | 527 -> 140 | 73.4% | 3/3 |
+| File listing | 508 -> 190 | 62.6% | 3/3 |
+| Daily briefing | 196 -> 150 | 23.5% | 3/3 |
+| Lint-warning wall | 2221 -> 127 | 94.3% | 5/5 |
+| GitHub Actions log | 467 -> 284 | 39.2% | 6/6 |
+| pnpm progress | 420 -> 173 | 58.8% | 5/5 |
+| **Fixed-fixture total** | **7747 -> 1876** | **75.8%** | **48/48** |
+
+The suite also checks dropped signal, determinism, idempotence and p95 reducer latency
+<= 25 ms. The added TAP fixture changes the blend: do not compare aggregate percentages
+against the previous nine-fixture total as though the workload were unchanged.
+
+A separate **offline protocol replay** exercises four structured fixtures through both
+Claude and Codex. TAP's full response, including metadata, shrinks **1876 -> 259 tokens
+(86.2%)** for each adapter while every non-stdout field survives. It does not launch either
+harness or an LLM. Live acceptance and task-quality parity remain explicit roadmap gates.
+
+On the same Linux/Node 24.20.0 environment, 30 alternating cold hook processes per build
+measured median **71.648 -> 39.249 ms (45.2% lower)**. This measures local startup, not model
+latency. Raw samples and reproduction commands are in the [release evidence](docs/releases/0.3.0.md).
+
+Historical live OpenCode Tier B results remain in [benchmarks/tierB](benchmarks/tierB/README.md).
+They are not evidence of current Claude/Codex end-to-end quality.
+
+## Choose the integration deliberately
+
+| Harness | Installed path | Scope / important limit |
+| --- | --- | --- |
+| Claude Code | Bash hook + skills + CLAUDE.md | Structured `updatedToolOutput`; does not intercept built-in Read/Grep/Glob |
+| Codex | Skills + AGENTS.md by default | Optional Bash hook; requires supported hooks and user trust |
+| OpenCode | Native plugin | In-process result handling |
+| Hermes | Plugin | Gateway reload can be needed after updating files |
+| Pi | Extension | Project or user scope |
+| OMP | tool_result hook | Project or user scope |
+
+```sh
+harnesstrim install opencode --apply
+harnesstrim install hermes --apply
+harnesstrim install pi --apply
+harnesstrim install omp --apply
+harnesstrim install codex --hook --global --apply
+harnesstrim capabilities
+```
+
+`--global` with Codex `--hook` installs only `~/.codex/hooks.json`, without editing project
+instructions. `--no-hook` (Claude) and `--no-instructions` (Claude/Codex) narrow the write-set.
+OpenCode/Pi/OMP/Hermes expose adapter-specific mode/threshold flags; use `--help` and
+`capabilities` for exact options, paths and artifact digests.
+
+Installation is dry-run by default. Model choice and reasoning effort are not changed.
+`preset list` / `preset show <name>` describe policy suggestions, not automatic model routing.
+
+## Pipes, status and MCP
+
+For commands whose output is not intercepted, reduce before it enters context. In Bash,
+preserve failure status rather than accidentally returning the pipe's final success:
+
+```bash
+( set -o pipefail; npm test 2>&1 | harnesstrim reduce )
+```
+
+That syntax is Bash-specific, not PowerShell or Windows cmd. See the
+[shell guidance](docs/codex-claude-optimization.md) for status-safe PowerShell usage.
+Do not use a reduced stream as machine-readable TAP/JSON or as compiler input; reducers
+produce model-facing summaries, not lossless protocol streams. Keep raw output when needed.
+
+```sh
+harnesstrim reduce --stats < build.log
+harnesstrim mcp
+```
+
+MCP exposes only `reduce(text)`, not unrestricted command execution. A model passing text
+it already saw to MCP cannot remove those earlier tokens; hook/pipe reduction before
+context ingestion is the preferred saving path. [MCP details](packages/mcp/README.md).
+
+## Local measurements and privacy
+
+```sh
+harnesstrim hook claude --metrics .harnesstrim/metrics.jsonl
+harnesstrim reduce --metrics .harnesstrim/metrics.jsonl < build.log
+harnesstrim metrics .harnesstrim/metrics.jsonl --json
+```
+
+Hook commands read hook JSON on stdin; they are normally launched by the harness, not
+interactively. Receipts contain counts and reducer/harness identity, never tool payloads
+or error messages. Standalone pipe/MCP receipts can include cl100k token counts; hooks
+use char counts. An emitted hook receipt proves local processing, **not that the harness
+accepted the replacement or that a task succeeded**.
+
+Direct CLI telemetry is off unless enabled. The existing Claude pipe instruction and
+optional Codex hook command explicitly include a local metrics path; review the install
+preview. No measurements are sent to a remote service. Disabled MCP telemetry performs
+no token counting, and telemetry failures cannot break the result.
+
+## Remove an integration
+
+```sh
+harnesstrim uninstall claude            # preview
+harnesstrim uninstall claude --apply
+```
+
+Use the same harness/scope used for installation. Uninstall removes HarnessTrim-owned
+artifacts and marker blocks, not unrelated configuration. Always review the preview.
+
+## Develop and validate
 
 ```sh
 git clone https://github.com/giuliastro/HarnessTrim.git
 cd HarnessTrim
-pnpm install
-
-# Run directly from a checkout on Linux, macOS, or Windows:
-pnpm exec harnesstrim doctor            # diagnose token waste in the current project
-pnpm exec harnesstrim reduce < output   # slim noisy tool output
-
-# Install an adapter (dry-run first, then --apply):
-pnpm exec harnesstrim install hermes --apply      # Hermes Agent plugin
-pnpm exec harnesstrim install hermes --mode active --no-enable --apply
-                                                    # supervisor-safe: plugin files only; caller owns config enablement
-pnpm exec harnesstrim install opencode --apply    # OpenCode runtime plugin
-pnpm exec harnesstrim install claude --apply      # Claude Code PostToolUse hook
-pnpm exec harnesstrim install codex --apply       # Codex skill pack + AGENTS.md instruction
-pnpm exec harnesstrim install codex --hook --apply # optional experimental Bash PostToolUse hook
-pnpm exec harnesstrim install codex --hook --global --apply # enable the hook for trusted projects
-pnpm exec harnesstrim install pi --apply          # Pi extension
+pnpm install --frozen-lockfile
+pnpm run typecheck
+pnpm test
+pnpm run bench
+node packages/cli/build.mjs
+bash packages/cli/smoke-test-gate.sh
+python packages/adapter-hermes/test/plugin-payload.test.py
 ```
 
-After installing an adapter, the harness automatically reduces tool output (test logs, git diffs,
-JSON responses, file listings, long prose briefings) before the model sees it.
-
----
-
-## The problem
-
-In a coding agent, tokens are spent across several channels — and most tools only attack one of them:
-
-| Channel | What fills it | Who attacks it today |
-| --- | --- | --- |
-| **Tool output** | test logs, `git diff`, grep, build output, big JSON, file reads | RTK (shell only) |
-| **Model output** | the agent's own verbosity | Caveman |
-| **Thinking** | reasoning tokens, billed as output | mostly nobody |
-| **Fixed instructions** | always-loaded `CLAUDE.md`/`AGENTS.md` | skills (native) |
-| **Conversation history** | everything that survives compaction | compaction (native) |
-
-Each existing tool moves one lever. The waste is spread across all of them, so single-lever tools
-leave most of the budget on the table. HarnessTrim's thesis: **coordinate all five levers behind one
-policy**, using the deterministic hook/skill primitives every modern harness already exposes.
-
-## Strategy: skill-first, adapter-second, measured
-
-Three principles, in priority order:
-
-1. **Skill-first.** The portable value is a pack of Agent Skills (the format every target harness
-   already understands). Skills carry the policy; they cost almost nothing until invoked.
-2. **Adapter-second.** Thin per-harness adapters translate one shared policy into each harness's
-   native dialect (hooks, plugins, compaction events). Adapters are where the real work is — and
-   where fragility lives — so they stay deliberately small and delegate all logic to the shared core.
-3. **Measured, not asserted.** Every claim is backed by a reproducible benchmark. Competitors report
-   self-measured numbers that don't compose; HarnessTrim ships the measurement harness itself.
-
-```mermaid
-flowchart TB
-    subgraph Harnesses
-        CC[Claude Code]
-        CX[Codex]
-        OC[OpenCode]
-        HM[Hermes Agent]
-        PI[Pi]
-    end
-
-    subgraph Adapters["Adapter layer (thin, per-harness)"]
-        A1[hooks / plugins / compaction events]
-    end
-
-    subgraph Core["@harnesstrim/core (shared, deterministic)"]
-        R[reducers]
-        D[content dispatcher]
-        P[policy presets]
-        M[metrics / TrimEvent]
-    end
-
-    subgraph Skills["Portable skill pack"]
-        S[delta-response · debug-log-slim · review-delta<br/>compact-handoff · scaffold-fast · delegate-bulk]
-    end
-
-    CC --- A1
-    CX --- A1
-    OC --- A1
-    HM --- A1
-    PI --- A1
-    A1 --> Core
-    Core --- Skills
-
-    classDef done fill:#1f6f3f,stroke:#0d3,color:#fff;
-    class CC,CX,OC,HM,PI,A1,R,D,P,M,S done;
-```
-
-*Green = has a shipped adapter. All five targets (OpenCode, Codex, Claude Code, Hermes Agent, Pi) now have one, reusing the same core and skills.*
-
-### The five levers
-
-| Lever | Mechanism | HarnessTrim component |
-| --- | --- | --- |
-| **Progressive disclosure** | recurring instructions live in on-demand skills, not always-loaded files | skill pack + `doctor` |
-| **Tool-output reduction** | a deterministic reducer slims noisy output before it reaches the model | `reducers` + adapter `tool.execute.after` |
-| **Thinking routing** | match reasoning effort to task type (low for mechanical, high for architecture) | policy presets (advisory) |
-| **Subtask isolation** | isolate/handoff noisy work instead of polluting the main context | `compact-handoff` + `delegate-bulk` skills, compaction hook |
-| **Observability** | normalize what was actually saved into one schema | `TrimEvent` + `metrics` |
-
-## How tool-output reduction works
-
-The adapter intercepts tool results, the shared core decides what (if anything) to slim, and only the
-signal reaches the model. Reducers are **deterministic and idempotent** and never touch the cacheable
-prompt prefix — so they shrink cost without busting the prompt cache. The shared dispatcher is
-also **fail-open**: if a matched reducer throws, HarnessTrim returns the original tool output
-byte-for-byte instead of turning an optimization failure into a harness failure.
-
-```mermaid
-sequenceDiagram
-    participant M as Model
-    participant H as Harness
-    participant A as HarnessTrim adapter
-    participant C as core.reduceAuto
-    M->>H: request tool call (e.g. run tests)
-    H->>H: execute tool (1410 chars of output)
-    H->>A: tool.execute.after(output)
-    A->>C: reduceAuto(output)
-    C-->>A: slimmed output + TrimEvent (124 chars)
-    A-->>H: mutated output.output
-    A->>A: append TrimEvent (telemetry, opt-in)
-    H-->>M: slimmed output enters context
-```
-
-## KPIs
-
-What HarnessTrim optimizes for, and how each is measured:
-
-| KPI | Definition | Target | Source |
-| --- | --- | --- | --- |
-| **Tool-output reduction** | 1 − (chars out / chars in) per reduced tool call | ≥ 50% on noisy output | adapter telemetry, benchmark |
-| **Signal fidelity (recall)** | must-keep signal lines surviving reduction / total must-keep | 100% (bench fails otherwise) | Tier A benchmark (measured now) |
-| **Blended session reduction** | total tokens saved / baseline session tokens | 30–50% (model) | end-to-end benchmark (Tier B, planned) |
-| **Quality retention** | task-success parity vs the untrimmed baseline | 100% (no regressions) | Tier B benchmark |
-| **Cache preservation** | share of reductions that leave the cacheable prefix untouched | 100% | design guarantee (reducers only touch volatile output) |
-| **Reducer stability** | same input produces the same output; reducing an already-reduced output is a no-op | 100% deterministic + idempotent | Tier A benchmark, release gate |
-| **Coverage** | share of noisy tool calls that a reducer actually matched | grow over time | telemetry (`reducer: null` = missed) |
-| **Overhead** | reducer execution latency | p95 ≤ 25 ms per Tier A fixture | Tier A benchmark, release gate |
-
-## Savings: measured vs hypothesized
-
-Two honesty tiers. Keep them separate.
-
-### Measured (real numbers today)
-
-The token number alone is not the point — a reducer that drops the one line you needed would post a
-great percentage and ruin the context. So the Tier A release gate measures token reduction together
-with **signal fidelity**, **determinism**, **idempotency**, and **p95 local latency**. Of the lines
-that must survive (the error, the failing test, the assertion, the changed files, the summary), it
-measures how many are kept and audits any dropped line that looks like signal. The latency budget is
-25 ms p95 per fixed fixture, with warm-up and repeated measurements to avoid treating one scheduler
-spike as a regression. Current Tier A headline: **−72.5% tokens at 100% signal recall** across nine
-fixed fixtures (`pnpm run bench`, no LLM). The suite now includes realistic GitHub Actions and pnpm
-install output. Those shapes are less compressible than the earlier warning-heavy mix, so the broader
-blended percentage is lower than the old seven-fixture headline while covering more real tool-output
-patterns. The bench fails loudly if fidelity, determinism, idempotency, or the latency budget regresses.
-
-  | Fixture | Reducer | Tokens | Reduction | Signal kept |
-  | --- | --- | --- | --- | --- |
-  | jest, mostly-pass | test-output-slim | 408 → 216 | −47.1% | 6/6 |
-  | pytest, mostly-pass | test-output-slim | 395 → 211 | −46.6% | 5/5 |
-  | lockfile-heavy diff | git-diff-slim | 939 → 183 | −80.5% | 4/4 |
-  | JSON API array | json-output-slim | 527 → 140 | −73.4% | 3/3 |
-  | file listing (long) | file-listing-slim | 508 → 190 | −62.6% | 3/3 |
-  | daily briefing (prose) | generic-text-slim | 196 → 150 | −23.5% | 3/3 |
-  | eslint warning wall | lint-output-slim | 2221 → 127 | −94.3% | 5/5 |
-  | GitHub Actions log | ci-log-slim | 467 → 284 | −39.2% | 6/6 |
-  | pnpm install progress | package-manager-output-slim | 420 → 173 | −58.8% | 5/5 |
-  | **Measured blend** | | 6081 → 1674 | **−72.5%** | **40/40 (100%)** |
-
-The same Tier A run reports zero dropped signal-looking lines, deterministic and idempotent output,
-and a maximum fixture p95 of 0.159 ms against the 25 ms budget. Each fixture's must-keep lines are
-annotated in [`benchmarks/src/run.ts`](benchmarks/src/run.ts), so "what survives" is explicit and
-reproducible, not a claim.
-
-- **One live OpenCode session:** a real `bash` test run was reduced **1410 → 124 chars (−91.2%)** in the
-  actual pipeline, with the FAIL line and summary preserved (see PLAN.md §9, Phase 2 hardening).
-
-These cover the tool-output lever only, on selected inputs. They are not a session-wide claim.
-
-### Hypothesized (illustrative model, not measured)
-
-To reason about the *blended* win we model a "typical" medium debugging session. **These percentages
-are an engineering hypothesis to be validated by the Tier B benchmark — not results.**
-
-Baseline budget of an illustrative session, by channel:
-
-```mermaid
-pie showData
-    title Baseline session token budget (illustrative)
-    "Tool output" : 45
-    "Conversation history" : 15
-    "Model output" : 15
-    "Thinking" : 15
-    "Instructions (fixed)" : 10
-```
-
-Applying a *conservative* per-lever reduction to each channel:
-
-| Lever | Channel share | Assumed reduction of channel | Saved (% of total) |
-| --- | --- | --- | --- |
-| Tool-output reduction | 45% | 65% | 29.3% |
-| Thinking routing | 15% | 50% | 7.5% |
-| Model-output discipline | 15% | 40% | 6.0% |
-| Progressive disclosure | 10% | 50% | 5.0% |
-| Subtask isolation | 15% | 30% | 4.5% |
-| **Blended** | | | **≈ 52%** |
-
-```mermaid
-xychart-beta
-    title "Hypothesized token savings by lever (% of total session budget)"
-    x-axis ["Tool output", "Thinking", "Model output", "Instructions", "Subtask iso."]
-    y-axis "Saved % of total" 0 --> 35
-    bar [29.3, 7.5, 6.0, 5.0, 4.5]
-```
-
-Scenario range (blended reduction of total session tokens):
-
-| Scenario | Assumptions | Blended reduction |
-| --- | --- | --- |
-| Conservative | low per-lever rates, tool output only partially matched | ~30% |
-| Expected | the table above | ~50% |
-| Optimistic | noisy debugging session, high tool-output share | ~65% |
-
-```mermaid
-xychart-beta
-    title "Blended session reduction — hypothesized scenarios (% of total tokens)"
-    x-axis ["Conservative", "Expected", "Optimistic"]
-    y-axis "Reduction %" 0 --> 70
-    bar [30, 50, 65]
-```
-
-> **Why the model is plausible but unproven:** the tool-output lever (the largest slice) is already
-> backed by the measured Tier A suite and the −91.2% live OpenCode reduction above. The other levers
-> are extrapolated from vendor documentation on reasoning-token billing, prompt caching, and
-> progressive disclosure. The Tier B end-to-end benchmark (planned) will replace this section's
-> hypotheses with measured, quality-checked numbers comparing *vanilla harness* vs *harness +
-> HarnessTrim*.
-
----
-
-## Status
-
-Phases 0–4 in progress. Shipped: reducers + benchmark, the 6-skill pack, adapters for **OpenCode**
-(runtime plugin, hardened in a live session), **Codex** (skills + AGENTS.md reduce-pipe, live-validated
-via `codex debug prompt-input`), **Claude Code** (PostToolUse reducer hook), **Hermes Agent**
-(`transform_tool_result` plugin, verified in a live session), and **Pi** (`tool_result` extension,
-verified live on 0.82.1),
-plus an MCP `reduce` server, the `harnesstrim` CLI (doctor / install / uninstall / capabilities / preset / metrics / reduce /
-hook / mcp / bench), telemetry, and policy presets. All five target harnesses now have an adapter.
-The CLI is **published on npm** (`npx harnesstrim`) as a single self-contained bundle.
-End-to-end Tier B runs on OpenCode (two tasks × two runs, quality retained in all 8) measured billed-token
-savings of **~2% on a tiny one-tool-call task and ~22–25% on a large-noisy-output task**, with the prompt
-cache preserved — the blended win scales with noisy-output volume vs fixed overhead. A larger multi-model,
-multi-tool-call study is the remaining Tier B work. Test, typecheck, benchmark and clean-package smoke
-gates run in CI rather than being summarized here as a stale hard-coded test count.
-Installers support **narrowing** (skills-only installs via `--no-hook`/`--no-instructions`, OpenCode
-`--mode`/`--min-length`/`--tools` baked into the wrapper), `doctor`/`install`/`metrics` emit **`--json`**,
-`capabilities` reports per-harness surfaces/write-sets as JSON, and `uninstall` reverses an install
-dry-run-first (only removing what HarnessTrim wrote, marker-guarded). Telemetry lines carry a schema
-version and a stable event id.
-
-> **Known limitation (Claude Code):** the `PostToolUse` reducer hook installs and fires correctly, but
-> Claude Code (verified on 2.1.37 and 2.1.212) does not currently apply a hook's `updatedToolOutput`,
-> so the slimmed output does not yet reach the model. This is a Claude-Code-side issue, not an adapter
-> defect. Until it lands, use the MCP `reduce` tool (`harnesstrim mcp`) or the `harnesstrim reduce`
-> pipe on Claude Code. OpenCode and Hermes reduction are verified working.
-
-## Layout
-
-```
-packages/core/              deterministic, idempotent reducers + content dispatcher + presets + metrics
-packages/adapter-opencode/  OpenCode plugin: slims tool output + injects compaction handoff + telemetry
-packages/adapter-codex/     Codex: skill bundle + AGENTS.md reduce-pipe instruction
-packages/adapter-claude/    Claude Code: PostToolUse reducer hook + skill bundle
-packages/adapter-hermes/    Hermes Agent: transform_tool_result reducer plugin (Python)
-packages/adapter-pi/        Pi: tool_result reducer extension (TypeScript)
-packages/mcp/               MCP server exposing a `reduce` tool (Codex, Claude Code, any MCP client)
-packages/cli/               harnesstrim CLI: doctor, install, uninstall, capabilities, preset,
-                            metrics, reduce, hook, mcp, bench
-skills/                     portable Agent Skills (delta-response, debug-log-slim, review-delta,
-                            compact-handoff, scaffold-fast, delegate-bulk)
-benchmarks/                 Tier A micro-benchmarks: reducer token-reduction, no LLM involved
-examples/opencode/          minimal .opencode/ local-plugin wrapper wiring the adapter (dry-run)
-```
-
-## CLI
-
-```sh
-pnpm exec harnesstrim doctor [dir]            # diagnose token-waste signals in a project
-pnpm exec harnesstrim install opencode [dir]  # OpenCode: local plugin wrapper in .opencode/ (dry-run)
-pnpm exec harnesstrim install opencode --preset lean-debug --apply
-pnpm exec harnesstrim install opencode --mode dryrun --apply      # preview without reducing
-pnpm exec harnesstrim install opencode --min-length 2000 --apply  # leave outputs <2k chars untouched
-pnpm exec harnesstrim install opencode --tools bash,read --apply  # reduce only bash + read output
-pnpm exec harnesstrim install codex [dir]     # Codex: skills + AGENTS.md reduce-pipe (dry-run)
-                                             # add --hook for experimental automatic Bash reduction
-                                             # add --hook --global to install it once in ~/.codex
-                                             # add --no-instructions for skills only
-pnpm exec harnesstrim install claude [dir]    # Claude Code: skills + PostToolUse hook (dry-run)
-pnpm exec harnesstrim install claude --no-hook --apply            # skills + CLAUDE.md, no hook
-pnpm exec harnesstrim install hermes [dir]    # Hermes Agent: transform_tool_result plugin (dry-run)
-pnpm exec harnesstrim install pi [dir]        # Pi: tool_result extension (dry-run)
-pnpm exec harnesstrim uninstall claude [dir]  # reverse an install, dry-run (add --apply to remove)
-pnpm exec harnesstrim capabilities            # per-harness capabilities / write-sets as JSON
-pnpm exec harnesstrim preset list             # list policy presets
-pnpm exec harnesstrim metrics [path]          # summarize adapter telemetry (JSONL)
-pnpm exec harnesstrim doctor --json           # any command emitting a report accepts --json
-pnpm exec harnesstrim metrics --json          # machine-readable telemetry summary
-npm test 2>&1 | pnpm exec harnesstrim reduce  # pipe: slim noisy output (Codex/Claude/shell)
-npm test 2>&1 | pnpm exec harnesstrim reduce --metrics .harnesstrim/metrics.jsonl  # + record the saving
-pnpm exec harnesstrim bench                    # run the Tier A reducer micro-benchmark
-```
-
-- `doctor` flags oversized always-loaded instruction files (CLAUDE.md/AGENTS.md/...), reports
-  whether on-demand skills are used, and whether the OpenCode adapter is wired in.
-- `install <harness>` is dry-run until `--apply`. Each adapter uses that harness's native surface:
-  OpenCode a `tool.execute.after` plugin, Claude Code a `PostToolUse` hook, Hermes a
-  `transform_tool_result` plugin, Pi a `tool_result` extension, Codex an AGENTS.md reduce-pipe
-  instruction. `--preset` (OpenCode) bakes a policy preset's adapter config in. Installs can be
-  **narrowed** per harness: `--no-hook`/`--no-instructions` (Claude/Codex) install skills only,
-  and OpenCode's `--mode active|dryrun|off`, `--min-length <n>`, and `--tools <list>` overrides
-  are baked into the generated wrapper.
-- `uninstall <harness>` reverses an install. It is dry-run until `--apply` and only touches files
-  HarnessTrim wrote: marker-guarded instruction regions, the skills it copied (including a now-empty
-  parent skills dir), hook entries it added, and the OpenCode wrapper/dependency.
-- `capabilities` prints a JSON table of what this build supports per harness: adapter surface,
-  available narrowing flags, and the exact write-set each installer owns.
-- `doctor`, `install`, and `metrics` accept `--json` for machine-readable output (scripts/CI).
-- `reduce` is the pipe-friendly reducer (RTK-style) shared across harnesses.
-- `metrics` aggregates the telemetry the adapter emits into totals with **per-reducer** and
-  **per-harness** splits, a **pass-through rate** (no reducer matched), **fail-open reducer failure**
-  counts (a reducer threw but the original output was preserved), and **growth-error** counts
-  (an attempted reduction grew the output). Pass-throughs can be opted out with
-  `HARNESSTRIM_TRACK_PASSTHROUGH=0`; reducer failures are still recorded whenever telemetry is
-  enabled because they are operational errors, not ordinary misses. Lines carry a schema version
-  and stable event id. Only counts/status are recorded, never tool payloads or reducer exception
-  messages.
-
-## Try it
-
-```sh
-pnpm install
-pnpm run test        # unit tests (core reducers + dispatcher + adapter hooks)
-pnpm run typecheck   # type-check every package against real dependency types
-pnpm run bench       # Tier A micro-benchmark: token reduction on fixed fixtures
-```
-
-The package bin is cross-platform: the same `pnpm exec harnesstrim …` command works from Linux, macOS,
-and Windows. To expose it globally, use your package manager's standard linking command:
-
-```sh
-pnpm --filter harnesstrim link --global
-harnesstrim --help
-```
-
-## Using it in your harness
-
-Each harness has a one-command installer (dry-run until `--apply`). Use `pnpm exec harnesstrim …`
-from a checkout, or `harnesstrim …` after linking the package globally. The installer preview is separate
-from each adapter's runtime reduction mode below.
-
-### Reduction mode & telemetry (per adapter)
-
-Once installed, does the adapter actually slim output, and does it record metrics? This differs by
-harness. "dry-run mode" here means the adapter logs what it *would* slim without changing anything.
-
-| Harness | Reduces after install? | Make reduction permanent | Telemetry (metrics) |
-| --- | --- | --- | --- |
-| OpenCode | **Yes** — the local plugin wrapper defaults to `mode: "active"` | permanent once installed; set `mode: "dryrun"` in `.opencode/plugin/harnesstrim.ts` to only preview | **on** when installed via the CLI (the generated wrapper sets `telemetry: true` → `.harnesstrim/metrics.jsonl`), read with `harnesstrim metrics <path>` |
-| Claude Code | **Via the pipe / MCP** — the `PostToolUse` hook is spec-correct but Claude Code 2.1.37–2.1.212 don't apply `updatedToolOutput`, so `install claude` also adds a `CLAUDE.md` instruction to pipe noisy output through `harnesstrim reduce` (slims in-shell before the model sees it) and registers the MCP `reduce` tool. | keep the CLAUDE.md instruction / MCP registration | **on** — the pipe instruction uses `harnesstrim reduce --metrics .harnesstrim/metrics.jsonl`; the MCP server records too (`--metrics`) |
-| Codex | Default: model pipes through `harnesstrim reduce` or calls MCP `reduce`. Experimental `--hook`: automatically reduces supported Bash results. | `AGENTS.md` / MCP, project `--hook`, or global `--hook --global` for trusted projects | hook telemetry is written per project to `.harnesstrim/metrics.jsonl`; MCP/pipe telemetry is manual |
-| Hermes | **No** — starts in `dryrun` | set `HARNESSTRIM_MODE=active` in Hermes' persistent environment | off; set `HARNESSTRIM_TELEMETRY=1`, then run `harnesstrim metrics` |
-| Pi | **No** — starts in `dryrun` | set `HARNESSTRIM_MODE=active` **persistently** in Pi's environment | set `--metrics <path>` at install or `HARNESSTRIM_METRICS=<path>`; receipts include reductions, pass-throughs and fail-open failures |
-
-Guidance: for the dry-run adapters (Hermes, Pi) keep the default while you confirm it slims the right
-things (watch stderr for `[harnesstrim] dryrun ...` lines), then flip to `active` persistently.
-Telemetry is **off by default everywhere**; enable it only where you want a metrics trail.
-
-Telemetry lines are JSONL with a schema version and a stable event id, e.g.:
-
-```jsonl
-{"schemaVersion":1,"eventId":"…","ts":"2026-09-02T…","harness":"opencode","tool":"bash","reducer":"test-output-slim","beforeChars":1410,"afterChars":124,"changed":true,"reductionFailed":false,"beforeTokens":null,"afterTokens":null}
-```
-
-`beforeTokens`/`afterTokens` are `null` unless the emitting path has real counts (no tokenizer runs in
-the harness process). `harnesstrim metrics <path>` aggregates these; legacy schemaVersion-0 lines are
-still accepted.
-
-### OpenCode
-
-```sh
-harnesstrim install opencode /path/to/project --apply
-```
-
-Installs a **local plugin wrapper** at `.opencode/plugin/harnesstrim.ts` (plus `.opencode/package.json`,
-whose dependency it installs) and removes any stale adapter entry from `opencode.json`. This is
-required because OpenCode's `plugin` config is a string array that can't pass options — the wrapper is
-how mode/telemetry are applied. It reduces tool output automatically via `tool.execute.after`, defaults
-to `mode: "active"` with telemetry on (→ `.harnesstrim/metrics.jsonl`); set `mode: "dryrun"` in the
-wrapper to preview first. **Reload OpenCode** after installing so it loads the plugin. Details:
-[`packages/adapter-opencode`](packages/adapter-opencode/README.md),
-example: [`examples/opencode`](examples/opencode/).
-
-### Codex
-
-```sh
-harnesstrim install codex /path/to/project --apply
-```
-
-Copies the skill pack into `.codex/skills` and adds a reduce-pipe instruction to `AGENTS.md`. The
-agent then slims noisy output by piping it (`pytest 2>&1 | harnesstrim reduce`), so `harnesstrim`
-must be on PATH. For a first-class, native tool instead of a shell pipe, register the MCP reducer:
-
-```sh
-codex mcp add harnesstrim -- harnesstrim mcp
-```
-
-For experimental automatic reduction of simple Bash results, add the opt-in hook:
-
-```sh
-harnesstrim install codex /path/to/project --hook --apply
-```
-
-It writes a project-local `.codex/hooks.json` entry for `PostToolUse` (Bash only) and
-records reductions in `.harnesstrim/metrics.jsonl`. Codex currently lacks a supported
-in-place tool-output replacement API, so the hook uses Codex's documented
-block-and-replace fallback. It is deliberately opt-in: it does not intercept every shell
-execution or non-shell tools, and you must review/trust the hook in Codex before it runs.
-
-To enable the same opt-in hook for every trusted project without copying skills or changing
-any project `AGENTS.md`, install it once in your Codex home:
-
-```sh
-harnesstrim install codex --hook --global --apply
-```
-
-This writes `~/.codex/hooks.json`. Because Codex runs the hook with the session's project
-directory as its working directory, each project's metrics still land in that project's
-`.harnesstrim/metrics.jsonl`.
-
-Details: [`packages/adapter-codex`](packages/adapter-codex/README.md),
-[`packages/mcp`](packages/mcp/README.md).
-
-### Claude Code
-
-```sh
-harnesstrim install claude /path/to/project --apply
-```
-
-Installs three things (so `harnesstrim` must be on PATH):
-
-1. **The skill pack** → `.claude/skills`.
-2. **A `PostToolUse` hook** (matcher `Bash`) → `.claude/settings.json`. **Caveat:** the hook is
-   spec-correct and fires, but Claude Code (2.1.37–2.1.212) does not currently apply a hook's
-   `updatedToolOutput`, so on its own it does **not** yet reduce what the model sees (a Claude-Code-side
-   issue — see Status). It stays for when Anthropic fixes that.
-3. **A `CLAUDE.md` reduce-pipe instruction** — the *effective* path today. It tells the model to pipe
-   noisy commands through `harnesstrim reduce --metrics .harnesstrim/metrics.jsonl`, which slims output
-   **in the shell before it reaches the model** (real token saving) and records the saving.
-
-For a native, always-available tool, also register the MCP reducer (records metrics too):
-
-```sh
-claude mcp add-json harnesstrim-reduce \
-  '{"command":"harnesstrim","args":["mcp","--metrics","~/.harnesstrim/metrics.jsonl"]}' --scope user
-```
-
-Reload Claude Code after installing. Details:
-[`packages/adapter-claude`](packages/adapter-claude/README.md),
-[`packages/mcp`](packages/mcp/README.md).
-
-### Hermes Agent
-
-```sh
-harnesstrim install hermes --apply                    # ~/.hermes/plugins/harnesstrim/
-harnesstrim install hermes /path/to/project --apply   # project-local .hermes/plugins/
-```
-
-`install hermes --apply` refreshes the Python plugin, enables it with `hermes plugins enable harnesstrim`
-when the Hermes CLI is available, and verifies recognition via `hermes plugins list` — reporting
-"on disk" separately from "loaded by the running gateway". The no-argument form targets the user-level
-Hermes home; pass an explicit directory only for a project-local or alternate-profile installation.
-
-Hermes loads plugin bundles at gateway startup, so after a refresh run `hermes gateway restart` (or
-`systemctl --user restart hermes-gateway`) from a shell **outside** the gateway process — a gateway
-cannot safely replace itself from inside an active agent turn. It starts in `dryrun`; set
-`HARNESSTRIM_MODE=active` to reduce and
-`HARNESSTRIM_TELEMETRY=1` to record metrics. The plugin handles `terminal`, `read_file`, `web_extract`,
-`search_files`, `browser_snapshot`, and `vision_analyze`, preserving each tool's result schema. Run
-`harnesstrim metrics` to read the active Hermes profile's telemetry. It detects test output, git diffs,
-long JSON arrays, file listings, and prose briefings via the shared dispatcher. Details:
-[`packages/adapter-hermes`](packages/adapter-hermes/README.md).
-
-### Pi
-
-```sh
-harnesstrim install pi --apply             # <project>/.pi/extensions/harnesstrim/
-harnesstrim install pi ~ --apply           # global: ~/.pi/... (pass your home dir)
-```
-
-Copies a TypeScript extension that hooks Pi's `tool_result` and slims noisy output via
-`harnesstrim reduce` (so `harnesstrim` must be on PATH). It starts in `dryrun`; set
-`HARNESSTRIM_MODE=active` in Pi's environment to reduce. **Verified live on Pi 0.82.1:** the
-extension ships as `harnesstrim/index.ts` because Pi's loader only auto-discovers a subdirectory
-extension via `index.ts` (or a `package.json` with a `pi.extensions` field); dryrun logs
-`[harnesstrim] dryrun ...` to stderr, active mode replaces text chunks (a 13902-char JSON array
-reached the model as 6 lines), output passes through when `harnesstrim` is missing, and already-reduced
-output is never reduced twice. Details:
-[`packages/adapter-pi`](packages/adapter-pi/README.md).
-
-### Any MCP-capable harness
-
-`harnesstrim mcp` starts a stdio MCP server exposing a `reduce` tool. Register it with any client that
-speaks MCP (Codex, Claude Code, …). See [`packages/mcp`](packages/mcp/README.md).
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+Development uses Node 24 and native `.ts` imports. `bench` is a checkout command because
+fixtures and reports are not part of the published CLI. CI validates Linux, Windows and
+macOS and the npm tarball separately. Releases require the same gates before npm publish.
+
+[Current plan](PLAN.md) | [Claude adapter](packages/adapter-claude/README.md) |
+[Codex adapter](packages/adapter-codex/README.md) |
+[Supervisor/onboarding contract](docs/token-harness-onboarding.md) |
+[Historical design and observations](docs/development-history.md)

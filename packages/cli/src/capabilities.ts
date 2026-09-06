@@ -69,7 +69,7 @@ export const CAPABILITIES: Record<string, HarnessCapabilities> = {
     surfaces: [
       "PostToolUse Bash hook — deterministic reduction of simple Bash output (optional --hook)",
       "AGENTS.md reduce-pipe instruction — model pipes noisy output through `harnesstrim reduce`",
-      "MCP reduce tool — deterministic, instruction-free reduction (separate `harnesstrim mcp`)",
+      "MCP reduce tool — transforms supplied text; cannot erase tokens already consumed (separate `harnesstrim mcp`)",
     ],
     narrowing: [
       { flag: "--no-instructions", produces: "skills only — no AGENTS.md reduce-pipe instruction" },
@@ -81,8 +81,8 @@ export const CAPABILITIES: Record<string, HarnessCapabilities> = {
   claude: {
     adapter: "@harnesstrim/adapter-claude",
     surfaces: [
-      "PostToolUse Bash hook — spec-correct updatedToolOutput (not honored by Claude Code 2.1.37–2.1.212)",
-      "CLAUDE.md reduce-pipe instruction — the effective reduction path on current Claude Code",
+      "PostToolUse Bash hook — shape-preserving updatedToolOutput; offline protocol-tested, live acceptance version-dependent",
+      "CLAUDE.md reduce-pipe instruction — pre-context reduction fallback",
     ],
     narrowing: [
       { flag: "--no-hook", produces: "skills only — no PostToolUse hook in .claude/settings.json" },

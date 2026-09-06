@@ -35,6 +35,14 @@ jobs:
         run: node packages/cli/build.mjs
       - name: Clean-package smoke test (npm pack -> fresh install)
         run: bash packages/cli/smoke-test-gate.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-benchmark-evidence
+          path: |
+            benchmarks/reports/latest.json
+            benchmarks/reports/hook-replay.json
+          if-no-files-found: error
+
 
   publish:
     name: publish
@@ -71,9 +79,23 @@ jobs:
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: Create GitHub release with notes
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-benchmark-evidence
+          path: release-evidence
+      - name: Pack the published executable
+        working-directory: packages/cli
+        run: npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP"
+      - name: Create GitHub release with package and evidence
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="$(node -p "require('./packages/cli/package.json').version")"
-          gh release create "v$VERSION" --generate-notes
+          NOTES="docs/releases/$VERSION.md"
+          if [ -f "$NOTES" ]; then
+            gh release create "v$VERSION" --generate-notes --notes-file "$NOTES" \
+              "$RUNNER_TEMP/harnesstrim-$VERSION.tgz" release-evidence/*.json
+          else
+            gh release create "v$VERSION" --generate-notes \
+              "$RUNNER_TEMP/harnesstrim-$VERSION.tgz" release-evidence/*.json
+          fi

@@ -106,3 +106,13 @@ test("plan.changed is false when a skills-only install is already in that state"
   });
   assert.equal(rerun.changed, false);
 });
+
+
+for (const settings of ["not json", "null", "[]", "42", '{"hooks":[]}', '{"hooks":{"PostToolUse":{}}}']) {
+  test(`Claude install refuses to overwrite malformed settings: ${settings}`, () => {
+    assert.throws(() => planClaudeInstall({ ...base, settingsJsonContent: settings }), /refusing to overwrite/);
+  });
+}
+test("Claude skills-only install leaves malformed settings untouched", () => {
+  assert.equal(planClaudeInstall({ ...base, includeHook: false, settingsJsonContent: "not json" }).settingsAction, "skip");
+});

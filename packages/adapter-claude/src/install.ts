@@ -9,11 +9,8 @@ export const HOOK_MATCHER = "Bash";
 export const HARNESSTRIM_MARKER = "harnesstrim:begin";
 
 /**
- * CLAUDE.md instruction telling the model to pipe noisy output through the reducer. This is
- * the *effective* reduction path on Claude Code today: the PostToolUse hook is spec-correct
- * but current Claude Code versions do not apply `updatedToolOutput`, so the pipe (which slims
- * in the shell before output reaches the model) is what actually saves tokens. `--metrics`
- * records each reduction so `harnesstrim metrics` can report the savings.
+ * Stable installed instruction block. Kept unchanged on upgrade for prompt-cache stability.
+ * See docs/codex-claude-optimization.md for a status-preserving shell pipe recipe.
  */
 export const REDUCE_INSTRUCTION_SNIPPET = `<!-- ${HARNESSTRIM_MARKER} -->
 ## Token economy (HarnessTrim)
@@ -108,10 +105,23 @@ export function planClaudeInstall(input: ClaudeInstallInput): ClaudeInstallPlan 
   } else {
     try {
       const parsed = JSON.parse(input.settingsJsonContent);
+      if (includeHook && (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))) {
+        throw new Error(".claude/settings.json must contain an object; refusing to overwrite it.");
+      }
       settings = typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
     } catch {
-      // Malformed settings: treat as create-from-scratch rather than clobber silently.
+      if (includeHook) throw new Error(".claude/settings.json is not valid JSON; refusing to overwrite it.");
       settings = {};
+    }
+    if (includeHook && settings.hooks !== undefined) {
+      const hooks = settings.hooks;
+      if (!hooks || typeof hooks !== "object" || Array.isArray(hooks)) {
+        throw new Error("settings.hooks must be an object; refusing to overwrite it.");
+      }
+      const post = (hooks as Record<string, unknown>).PostToolUse;
+      if (post !== undefined && !Array.isArray(post)) {
+        throw new Error("hooks.PostToolUse must be an array; refusing to overwrite it.");
+      }
     }
     action = hasHarnessTrimHook(settings) ? "present" : "patch";
   }

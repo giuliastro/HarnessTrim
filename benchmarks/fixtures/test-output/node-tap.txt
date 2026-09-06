@@ -1,0 +1,266 @@
+TAP version 13
+# Subtest: successful case 1
+ok 1 - successful case 1
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 2
+ok 2 - successful case 2
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 3
+ok 3 - successful case 3
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 4
+ok 4 - successful case 4
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 5
+ok 5 - successful case 5
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 6
+ok 6 - successful case 6
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 7
+ok 7 - successful case 7
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 8
+ok 8 - successful case 8
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 9
+ok 9 - successful case 9
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 10
+ok 10 - successful case 10
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 11
+ok 11 - successful case 11
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 12
+ok 12 - successful case 12
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 13
+ok 13 - successful case 13
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 14
+ok 14 - successful case 14
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 15
+ok 15 - successful case 15
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 16
+ok 16 - successful case 16
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 17
+ok 17 - successful case 17
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 18
+ok 18 - successful case 18
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 19
+ok 19 - successful case 19
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 20
+ok 20 - successful case 20
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 21
+ok 21 - successful case 21
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 22
+ok 22 - successful case 22
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 23
+ok 23 - successful case 23
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 24
+ok 24 - successful case 24
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 25
+ok 25 - successful case 25
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 26
+ok 26 - successful case 26
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 27
+ok 27 - successful case 27
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 28
+ok 28 - successful case 28
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 29
+ok 29 - successful case 29
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 30
+ok 30 - successful case 30
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 31
+ok 31 - successful case 31
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 32
+ok 32 - successful case 32
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 33
+ok 33 - successful case 33
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 34
+ok 34 - successful case 34
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 35
+ok 35 - successful case 35
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 36
+ok 36 - successful case 36
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 37
+ok 37 - successful case 37
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 38
+ok 38 - successful case 38
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 39
+ok 39 - successful case 39
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: successful case 40
+ok 40 - successful case 40
+  ---
+  duration_ms: 0.123
+  type: 'test'
+  ...
+# Subtest: preserves invoice total
+not ok 41 - preserves invoice total
+  ---
+  duration_ms: 2.501
+  type: 'test'
+  location: 'tests/invoice.test.ts:42:1'
+  failureType: 'testCodeFailure'
+  error: 'invoice total mismatch'
+  code: 'ERR_ASSERTION'
+  expected: 1200
+  actual: 1201
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (tests/invoice.test.ts:45:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+  ...
+1..41
+# tests 41
+# suites 0
+# pass 40
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 18.221

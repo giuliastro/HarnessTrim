@@ -1,0 +1,89 @@
+{
+  "kind": "offline-hook-protocol-replay",
+  "tokenizer": "cl100k_base",
+  "liveHarness": false,
+  "llmTaskQualityMeasured": false,
+  "rows": [
+    {
+      "harness": "claude",
+      "fixture": "test-output/node-tap.txt",
+      "beforeTokens": 1876,
+      "afterTokens": 259,
+      "reductionPct": 86.2,
+      "metadataPreserved": true,
+      "deterministic": true,
+      "idempotent": true
+    },
+    {
+      "harness": "codex",
+      "fixture": "test-output/node-tap.txt",
+      "beforeTokens": 1876,
+      "afterTokens": 259,
+      "reductionPct": 86.2,
+      "metadataPreserved": true,
+      "deterministic": true,
+      "idempotent": true
+    },
+    {
+      "harness": "claude",
+      "fixture": "test-output/jest-mostly-pass.txt",
+      "beforeTokens": 488,
+      "afterTokens": 267,
+      "reductionPct": 45.3,
+      "metadataPreserved": true,
+      "deterministic": true,
+      "idempotent": true
+    },
+    {
+      "harness": "codex",
+      "fixture": "test-output/jest-mostly-pass.txt",
+      "beforeTokens": 488,
+      "afterTokens": 267,
+      "reductionPct": 45.3,
+      "metadataPreserved": true,
+      "deterministic": true,
+      "idempotent": true
+    },
+    {
+      "harness": "claude",
+      "fixture": "test-output/pytest-mostly-pass.txt",
+      "beforeTokens": 477,
+      "afterTokens": 282,
+      "reductionPct": 40.9,
+      "metadataPreserved": true,
+      "deterministic": true,
+      "idempotent": true
+    },
+    {
+      "harness": "codex",
+      "fixture": "test-output/pytest-mostly-pass.txt",
+      "beforeTokens": 477,
+      "afterTokens": 282,
+      "reductionPct": 40.9,
+      "metadataPreserved": true,
+      "deterministic": true,
+      "idempotent": true
+    },
+    {
+      "harness": "claude",
+      "fixture": "ci/github-actions-log.txt",
+      "beforeTokens": 515,
+      "afterTokens": 335,
+      "reductionPct": 35,
+      "metadataPreserved": true,
+      "deterministic": true,
+      "idempotent": true
+    },
+    {
+      "harness": "codex",
+      "fixture": "ci/github-actions-log.txt",
+      "beforeTokens": 515,
+      "afterTokens": 335,
+      "reductionPct": 35,
+      "metadataPreserved": true,
+      "deterministic": true,
+      "idempotent": true
+    }
+  ],
+  "integrityOk": true
+}

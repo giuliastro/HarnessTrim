@@ -74,3 +74,28 @@ test("MCP end-to-end: client lists and calls the reduce tool", async () => {
   await client.close();
   await server.close();
 });
+
+
+test("disabled MCP telemetry does not call the tokenizer", () => {
+  let calls = 0;
+  const text = "PASS ordinary successful case\n".repeat(40) + "Tests: 40 passed\n";
+  const result = runReduceTool(text, undefined, undefined, true, () => { calls++; return 0; });
+  assert.equal(calls, 0);
+  assert.ok(JSON.stringify(result).includes("harnesstrim:test-output-slim"));
+});
+
+
+test("MCP pass-through token counts are computed only once", () => {
+  let calls = 0;
+  const events: unknown[] = [];
+  runReduceTool("unchanged text\n".repeat(100), undefined, (event) => events.push(event), true,
+    () => { calls++; return 42; });
+  assert.equal(calls, 1);
+  assert.equal(events.length, 1);
+});
+test("MCP counter and sink failures never corrupt the tool result", () => {
+  const expected = runReduceTool(noisy);
+  const fail = () => { throw new Error("private telemetry failure"); };
+  assert.deepEqual(runReduceTool(noisy, undefined, fail), expected);
+  assert.deepEqual(runReduceTool(noisy, undefined, () => {}, true, fail), expected);
+});

@@ -11,7 +11,6 @@ import { runInstallClaude } from "./install-claude.ts";
 import { runInstallPi } from "./install-pi.ts";
 import { runInstallHermes } from "./install-hermes.ts";
 import { runInstallOmp } from "./install-omp.ts";
-import { countTokens } from "./tokens.ts";
 import { reduceClaudePayload } from "@harnesstrim/adapter-claude";
 import { reduceCodexPayload } from "@harnesstrim/adapter-codex";
 import { loadMetrics, DEFAULT_METRICS_PATH } from "./metrics.ts";
@@ -388,6 +387,7 @@ async function main(argv: string[]): Promise<number> {
       // process (not inside a harness), so it also reports exact token counts (see tokens.ts).
       if (values.metrics) {
         try {
+          const { countTokens } = await import("./tokens.ts");
           const p = path.resolve(values.metrics);
           fs.mkdirSync(path.dirname(p), { recursive: true });
           if (result.changed) {
@@ -447,7 +447,9 @@ async function main(argv: string[]): Promise<number> {
       // --metrics <path> records a TrimEvent per reduction (read with `harnesstrim metrics`).
       // The MCP server is a standalone process (unlike harness adapters), so token counts
       // are passed in for exact before/after token reporting (see tokens.ts).
-      await startStdioServer(values.metrics ? { metricsPath: values.metrics, countTokens } : { countTokens });
+      const metricsPath = values.metrics ?? process.env.HARNESSTRIM_TELEMETRY_PATH;
+      const counter = metricsPath ? await import("./tokens.ts") : undefined;
+      await startStdioServer({ metricsPath, countTokens: counter?.countTokens });
       // startStdioServer resolves once connected; keep the process alive for stdio.
       await new Promise<never>(() => {});
       return 0;

@@ -11,6 +11,7 @@ import {
   lintOutputSlim,
   packageManagerOutputSlim,
   testOutputSlim,
+  tapOutputSlim,
   type Reducer,
 } from "@harnesstrim/core";
 import { countTokens } from "./tokenizer.ts";
@@ -40,6 +41,12 @@ interface Fixture {
 }
 
 const FIXTURES: Fixture[] = [
+  {
+    file: "test-output/node-tap.txt",
+    reducer: tapOutputSlim,
+    mustKeep: ["not ok 41 - preserves invoice total", "expected: 1200", "actual: 1201",
+      "tests/invoice.test.ts:45:10", "1..41", "# tests 41", "# fail 1", "# pass 40"],
+  },
   {
     file: "test-output/jest-mostly-pass.txt",
     reducer: testOutputSlim,

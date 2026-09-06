@@ -1,4 +1,4 @@
-import { reduceAuto, DEFAULT_MIN_LENGTH } from "@harnesstrim/core";
+import { reduceAuto, DEFAULT_MIN_LENGTH, extractBashOutput, serializeToolOutput } from "@harnesstrim/core";
 
 export interface CodexReduction {
   /** Hook-response JSON to write to stdout (`{}` leaves the result untouched). */
@@ -22,70 +22,41 @@ export interface CodexReduction {
   } | null;
 }
 
+
 /**
- * Reduce a Codex PostToolUse payload. Codex currently has no supported in-place
- * `updatedToolOutput` field: the documented fallback is to block normal processing
- * and replace the model-visible result with the hook's reason. Keep this defensive —
- * an unfamiliar tool-response shape must always pass through untouched.
+ * Reduce the Bash text channel without losing stderr, status or other metadata.
+ * Unknown shapes/events and non-text results fail open. Receipts measure the full
+ * model-visible result, not just the selected stdout field.
  */
 export function reduceCodexPayload(rawJson: string, minLength?: number): CodexReduction {
-  const extracted = extractToolOutput(rawJson);
+  const extracted = extractBashOutput(rawJson, false);
   if (extracted === null) return { response: "{}", event: null, attempt: null };
-
-  const result = reduceAuto(extracted.output, minLength);
-  if (!result.changed) {
+  const result = reduceAuto(extracted.text, minLength);
+  const replacement = extracted.replace(result.output);
+  const after = serializeToolOutput(replacement);
+  // Serialization/feedback overhead must not turn a nominal reduction into growth.
+  if (!result.changed || after.length >= extracted.before.length) {
     return {
-      response: "{}",
-      event: null,
-      attempt:
-        extracted.output.length >= (minLength ?? DEFAULT_MIN_LENGTH)
-          ? {
-              tool: extracted.toolName,
-              beforeChars: extracted.output.length,
-              reducer: result.reductionError?.reducer ?? null,
-              reductionFailed: result.reductionError !== undefined,
-            }
-          : null,
+      response: "{}", event: null,
+      attempt: extracted.text.length >= (minLength ?? DEFAULT_MIN_LENGTH) ? {
+        tool: extracted.toolName,
+        beforeChars: extracted.before.length,
+        reducer: result.reductionError?.reducer ?? null,
+        reductionFailed: result.reductionError !== undefined,
+      } : null,
     };
   }
-
-  const response = JSON.stringify({
-    decision: "block",
-    reason: `HarnessTrim reduced ${extracted.toolName} output (${result.reducer}):\n\n${result.output}`,
-  });
   return {
-    response,
+    response: JSON.stringify({
+    // Unlike decision:block, continue:false does not reject a code-mode tool promise.
+    // This only replaces processing of the completed result, not the agent turn.
+    continue: false,
+    stopReason: after,
+  }),
     event: {
-      tool: extracted.toolName,
-      reducer: result.reducer,
-      beforeChars: extracted.output.length,
-      afterChars: result.output.length,
+      tool: extracted.toolName, reducer: result.reducer,
+      beforeChars: extracted.before.length, afterChars: after.length,
     },
     attempt: null,
   };
-}
-
-function extractToolOutput(rawJson: string): { toolName: string; output: string } | null {
-  let payload: unknown;
-  try {
-    payload = JSON.parse(rawJson);
-  } catch {
-    return null;
-  }
-  if (typeof payload !== "object" || payload === null) return null;
-  const p = payload as Record<string, unknown>;
-  const output = extractOutputText(p.tool_response);
-  return output === null
-    ? null
-    : { toolName: typeof p.tool_name === "string" ? p.tool_name : "unknown", output };
-}
-
-function extractOutputText(response: unknown): string | null {
-  if (typeof response === "string") return response;
-  if (typeof response !== "object" || response === null) return null;
-  const r = response as Record<string, unknown>;
-  for (const key of ["stdout", "output", "content"]) {
-    if (typeof r[key] === "string") return r[key] as string;
-  }
-  return null;
 }

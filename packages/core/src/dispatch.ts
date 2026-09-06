@@ -1,3 +1,4 @@
+import { tapOutputSlim } from "./reducers/tap-output-slim.ts";
 import type { Reducer, ReducerResult } from "./reducers/types.ts";
 import { testOutputSlim } from "./reducers/test-output-slim.ts";
 import { gitDiffSlim } from "./reducers/git-diff-slim.ts";
@@ -43,6 +44,7 @@ export function pickReducer(text: string): Reducer | null {
   // A full CI transcript may contain test FAIL/PASS lines; select the CI reducer first because it
   // trims only surrounding runner boilerplate and leaves the embedded test signal untouched.
   if (CI_LOG_RE.test(text) && text.length >= 400) return ciLogSlim;
+  if (/^TAP version 13\r?$/m.test(text)) return tapOutputSlim;
   if (TEST_OUTPUT_RE.test(text)) return testOutputSlim;
   // A Hermes cron archive embeds arbitrary prompts/skills, so identify it before
   // inspecting JSON or listing-looking lines inside that archival prompt.
