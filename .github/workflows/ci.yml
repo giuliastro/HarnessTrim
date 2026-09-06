@@ -32,7 +32,7 @@ jobs:
   # It catches what `pnpm run test` structurally cannot: whether the published tarball
   # works, and whether the assertions in smoke-test.sh still match real CLI output.
   # Running it only at release meant a broken assertion could sit on main until a tag.
-  # ubuntu only, matching the release job — the script is bash/POSIX (mktemp, timeout,
+  # ubuntu only, matching the release job - the script is bash/POSIX (mktemp, timeout,
   # an executable node_modules/.bin entry).
   smoke:
     name: clean-package smoke test
@@ -49,6 +49,21 @@ jobs:
         run: node packages/cli/build.mjs
       - name: Clean-package smoke test (npm pack -> fresh install)
         run: bash packages/cli/smoke-test-gate.sh
+      # Temporary branch-only baseline for offline development. No credentials,
+      # .git directory, user configuration or environment files are archived.
+      - name: Capture validation workspace
+        if: github.head_ref == 'feature/codex-claude-quality-0.3.0'
+        run: |
+          mkdir -p /tmp/harnesstrim-validation
+          git archive --format=tar HEAD | gzip > /tmp/harnesstrim-validation/source.tar.gz
+          tar -czf /tmp/harnesstrim-validation/dependencies.tar.gz node_modules packages/*/node_modules benchmarks/node_modules
+          cp "$(command -v node)" /tmp/harnesstrim-validation/node
+      - uses: actions/upload-artifact@v4
+        if: github.head_ref == 'feature/codex-claude-quality-0.3.0'
+        with:
+          name: harnesstrim-validation-workspace
+          path: /tmp/harnesstrim-validation
+          retention-days: 1
 
   hermes-plugin:
     name: hermes python plugin
