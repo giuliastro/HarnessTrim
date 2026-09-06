@@ -47,46 +47,21 @@ export function runReduceTool(
   countTokens?: TokenCounter
 ): CallToolResult {
   const result = reduceAuto(text, minLength);
-  const threshold = minLength ?? DEFAULT_MIN_LENGTH;
-  if (result.changed) {
-    sink(
-      makeTrimEvent({
-        harness: "mcp",
-        tool: "reduce",
-        reducer: result.reducer,
-        beforeChars: text.length,
-        afterChars: result.output.length,
-        beforeTokens: countTokens ? countTokens(text) : undefined,
-        afterTokens: countTokens ? countTokens(result.output) : undefined,
-      })
-    );
-  } else if (result.reductionError !== undefined) {
-    sink(
-      makeTrimEvent({
-        harness: "mcp",
-        tool: "reduce",
-        reducer: result.reductionError.reducer,
-        beforeChars: text.length,
-        afterChars: text.length,
-        changed: false,
-        reductionFailed: true,
-        beforeTokens: countTokens ? countTokens(text) : undefined,
-        afterTokens: countTokens ? countTokens(text) : undefined,
-      })
-    );
-  } else if (trackPassThrough && text.length >= threshold) {
-    sink(
-      makeTrimEvent({
-        harness: "mcp",
-        tool: "reduce",
-        reducer: null,
-        beforeChars: text.length,
-        afterChars: text.length,
-        changed: false,
-        beforeTokens: countTokens ? countTokens(text) : undefined,
-        afterTokens: countTokens ? countTokens(text) : undefined,
-      })
-    );
+  const shouldRecord = result.changed || result.reductionError !== undefined ||
+    (trackPassThrough && text.length >= (minLength ?? DEFAULT_MIN_LENGTH));
+  if (sink !== noopSink && shouldRecord) {
+    // Receipts are optional: failed counters or sinks cannot break a valid tool result.
+    try {
+      const beforeTokens = countTokens?.(text);
+      const afterTokens = result.changed ? countTokens?.(result.output) : beforeTokens;
+      sink(makeTrimEvent({
+        harness: "mcp", tool: "reduce",
+        reducer: result.reducer ?? result.reductionError?.reducer ?? null,
+        beforeChars: text.length, afterChars: result.output.length,
+        changed: result.changed, reductionFailed: result.reductionError !== undefined,
+        beforeTokens, afterTokens,
+      }));
+    } catch { /* telemetry is not a correctness dependency */ }
   }
   return { content: [{ type: "text", text: result.output }] };
 }

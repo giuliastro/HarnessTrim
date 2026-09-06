@@ -88,6 +88,30 @@ REDUCED_HIGH="$(printf '%s\n' "$LINT_WALL" | "$BIN" reduce --min-length 999999 2
 echo "$REDUCED_HIGH" | grep -q "harnesstrim:lint-output-slim" && fail "reduce --min-length 999999 should not reduce"
 [ "$REDUCED_HIGH" = "$LINT_WALL" ] || fail "reduce --min-length 999999 changed the input"
 
+# Structured Claude/Codex contracts must survive bundling and clean npm installation.
+node --input-type=module - "$BIN" <<'HOOK_TEST'
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+const binary = process.argv[2];
+const stdout = 'PASS ordinary successful test case\n'.repeat(40) +
+  'FAIL important case\nExpected: 1\nReceived: 2\nProcess exited with code 17\n';
+const original = { stdout, stderr: 'fatal: keep this diagnostic', exit_code: 17,
+  interrupted: false, isImage: false, future: { retain: true } };
+for (const harness of ['claude', 'codex']) {
+  const result = spawnSync(binary, ['hook', harness], { encoding: 'utf8',
+    input: JSON.stringify({ hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_response: original }) });
+  assert.equal(result.status, 0, result.stderr);
+  const reply = JSON.parse(result.stdout);
+  const updated = harness === 'claude' ? reply.hookSpecificOutput.updatedToolOutput : JSON.parse(reply.stopReason);
+  assert.deepEqual({ ...updated, stdout }, original);
+  assert.ok(updated.stdout.length < stdout.length);
+  assert.ok(updated.stdout.includes('Process exited with code 17'));
+  if (harness === 'codex') { assert.equal(reply.continue, false); assert.equal(reply.decision, undefined); }
+}
+HOOK_TEST
+[ "$?" -eq 0 ] || fail "packaged Claude/Codex hook contract"
+echo "== smoke: packaged Claude/Codex shapes, errors and status verified =="
+
 # 6. Every installer runs dry-run then --apply from a clean dir, using the
 #    shipped assets (skills / hermes plugin / pi extension / omp hook).
 for t in opencode codex claude hermes pi omp; do

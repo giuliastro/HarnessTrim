@@ -1,8 +1,7 @@
 # @harnesstrim/mcp
 
 A stdio [MCP](https://modelcontextprotocol.io) server exposing HarnessTrim's reducer as a first-class
-tool, for any MCP-capable harness (Codex, Claude Code, …). It's the deterministic, native alternative
-to the shell pipe / AGENTS.md instruction.
+tool, for any MCP-capable harness (Codex, Claude Code, …). It is a deterministic text transformer, not a pre-context tool interceptor.
 
 ## The `reduce` tool
 
@@ -56,7 +55,7 @@ command instead. Reload the harness after registering so it picks up the new ser
   a captured log it's about to reason over or quote back). No AGENTS.md edit needed; registered once,
   works across projects.
 - **`harnesstrim reduce` shell pipe** — reduces command output *before* it enters context
-  (`pytest 2>&1 | harnesstrim reduce`), so it's the better token-saver for noisy commands. On
+  (`( set -o pipefail; pytest 2>&1 | harnesstrim reduce )`), so it's the better token-saver for noisy commands. On
   OpenCode the `tool.execute.after` hook does this automatically.
 
 ## Status
@@ -64,3 +63,12 @@ command instead. Reload the harness after registering so it picks up the new ser
 Verified end-to-end: unit tests, an in-memory MCP client↔server round-trip, and a real stdio
 handshake (`initialize` + `tools/list`) exercised via the exact `node … mcp` command Codex launches —
 the `reduce` tool is discovered and callable.
+
+
+## Measurement and overhead (0.3.0)
+
+Text supplied to this tool may already be in the model context; reducing it cannot erase
+those earlier tokens. Prefer the shell pipe/native hook for pre-context savings. Standalone
+receipts use cl100k_base, not a vendor billing tokenizer. Disabled telemetry performs no
+token counting, pass-through payloads are counted once, and counter/sink failures cannot
+break a successful reduction. No command-execution tool is exposed.

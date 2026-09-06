@@ -133,7 +133,7 @@ function replaceHarnessTrimHookCommand(document: Record<string, unknown>, comman
 /**
  * Plan the optional Codex PostToolUse integration. It deliberately targets only Bash:
  * Codex does not currently support a native replacement field for tool output, so the
- * runtime hook uses its documented block-and-replace fallback for simple shell calls.
+ * runtime hook uses documented continue:false replacement feedback for Bash results.
  */
 export function planCodexHookInstall(input: CodexHookInstallInput): CodexHookInstallPlan {
   let document: Record<string, unknown> = {};

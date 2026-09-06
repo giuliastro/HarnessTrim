@@ -1,59 +1,46 @@
-# AGENTS.md — HarnessTrim
+# AGENTS.md - HarnessTrim
 
-Repo-specific operational notes. Loaded at the start of every session. Read this before
-making changes.
+Read PLAN.md before changes. Historical notes live in docs/development-history.md.
 
-## Working model
+## Repository and toolchain
 
-- Monorepo: `packages/` (core, adapters: opencode/claude/codex/hermes/pi, cli, mcp) + `benchmarks/` + `skills/`.
-- Root package `harnesstrim-monorepo`, CLI package published as `harnesstrim` on npm.
-- `pnpm` workspace + Node 24 (native TS via `node --experimental-strip-types`).
-- Toolchain constraint: relative imports in `.ts` files MUST use the literal `.ts` extension
-  (Node 24 does not remap `.js` → `.ts`).
+- pnpm workspace; Node 24 for native TypeScript. Relative TS imports use `.ts`.
+- packages: core, cli, mcp, and opencode/claude/codex/hermes/pi/omp adapters.
+- `packages/cli/package.json` is the source version; CLI package is `harnesstrim`.
+  Check npm/GitHub Releases for the published version instead of trusting dated notes.
+- Do not commit/push without user authorization. Machine-specific settings belong in
+  git-ignored AGENTS.local.md, not tracked documentation.
 
-## Commands
+## Validation
 
-The repo uses pnpm, but `pnpm` and `opencode` are NOT always on the session PATH. Ensure
-they are on the session PATH (machine-specific toolchain paths live in AGENTS.local.md,
-which is git-ignored — not in this file).
+- `pnpm run typecheck`
+- `pnpm test`
+- `pnpm run bench` (Tier A plus offline Claude/Codex hook replay)
+- `node packages/cli/build.mjs` (also checks the 256 KiB static-startup budget)
+- `bash packages/cli/smoke-test-gate.sh` (npm pack -> fresh consumer install)
+- `python packages/adapter-hermes/test/plugin-payload.test.py`
+- Optional cold CLI comparison: `node scripts/bench-cli-startup.mjs <baseline-cli.mjs> <candidate-cli.mjs> [report.json]`
 
-- Typecheck: `npm run typecheck`
-- Test: `npm test`
-- Core reducer tests only: `node --test "src/**/*.test.ts"` (from `packages/core`)
-- Tier A benchmark (fails if signal fidelity drops): `npm run bench` or
-  `node --experimental-strip-types benchmarks/src/run.ts`
-- CLI build (esbuild bundle + staged assets): `node packages/cli/build.mjs`
+## Invariants
 
-## Git
+Reducers must be deterministic, idempotent, non-growing and fail open. Unknown diagnostic
+text is not noise. Preserve full failure blocks, stderr, exit codes and structured metadata.
+Claude Bash replacements must remain objects; never flatten them to strings. Codex's
+opt-in hook uses `continue: false` / `stopReason`, not `decision: block` (code-mode rejection).
+Both hooks are Bash-only and ignore unrelated events and non-text/rich results.
 
-- Only commit/push when the user explicitly asks.
-- Remote/push conventions are machine-specific; see AGENTS.local.md.
+Do not rewrite stable prompt prefixes or silently lower reasoning effort. Existing
+instruction/skill assets are unchanged in 0.3.0. Telemetry is local and payload-free;
+raw diagnostics and exception messages must not enter receipts. Disabled MCP telemetry
+must not tokenize. Expensive MCP/tokenizer code must stay off the normal hook/pipe path.
 
-## Benchmarks / token accounting
+## Evidence and releases
 
-- Tier B (`benchmarks/tierB/`): vanilla vs trimmed OpenCode runs. `sum-session-tokens.mjs`
-  counts each `messages[i].info.tokens` EXACTLY once — the session-level `info.tokens` is
-  the aggregate and must NOT be summed on top (double-counting bug fixed 2026-07-17).
-- Export shape changed 1.17→1.18: `input` is fresh-only, `cache.read` separate. Verify
-  accounting assumptions if OpenCode bumps the format again.
-- OpenCode model for Tier B: `opencode/deepseek-v4-flash-free`.
+Tier A counts cl100k_base tokens, a proxy for vendor billing. Hook replay is offline,
+not live harness/LLM quality validation. Keep those claims separate. Tier B historical
+OpenCode accounting counts each message once: do not add aggregate session totals again;
+its input/cache semantics depend on the exporter version.
 
-## Published state (as of last work)
-
-- `harnesstrim` published: latest **0.0.7** (2026-08-02, PR #8 merged): Pi discovery fix
-  (`index.ts`), install-precision narrowing, `--json`/`capabilities`, `uninstall`,
-  TrimEvent schema, extended smoke test, AGENTS.md sanitized (machine info → AGENTS.local.md).
-- **In progress (2026-08-03, not yet published):** v0.1.0 — `metrics` depth (per-harness /
-  pass-through rate / reduction-error counts, additive `changed` on TrimEvent), pass-through
-  telemetry on by default when telemetry is on (`HARNESSTRIM_TRACK_PASSTHROUGH=0|false` to opt out),
-  and the release pipeline (`.github/workflows/release.yml`: typecheck/test/bench/smoke +
-  version/tag validation via `scripts/validate-release.mjs`, then npm publish + auto release notes;
-  needs an `npm-publish` environment with `NPM_TOKEN`). CLI version bumped to **0.1.0**; publishing
-  is gated on an explicit tag push.
-- CLI features already present: `doctor`, `install opencode|codex|claude|hermes|pi`,
-  `hook claude`, `reduce`, `mcp`, `bench`, `preset list/show`, `metrics`, `--version`,
-  `capabilities`, `uninstall`, `--json` on doctor/install/metrics.
-- All five harness adapters exist (opencode/claude/codex/hermes/pi hooks; codex via
-  instruction + MCP).
-- CI: `.github/workflows/ci.yml` (typecheck/test/bench on 3 OS + hermes plugin tests) and
-  `.github/workflows/release.yml` (tag-triggered publish pipeline, §9 v0.1.0).
+Release is gated by `.github/workflows/release.yml`. The existing release bridge creates
+a validated tag from `release/v<version>`; the owner-only `/release v<version>` issue
+comment dispatches publication. Never skip quality gates or republish a version.

@@ -13,7 +13,7 @@
     "js-tiktoken": "^1.0.15"
   },
   "scripts": {
-    "bench": "node src/run.ts",
+    "bench": "node src/run.ts && node src/hook-replay.ts",
     "typecheck": "tsc -p tsconfig.json"
   }
 }

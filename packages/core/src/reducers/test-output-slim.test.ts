@@ -58,3 +58,33 @@ test("test-output-slim: leaves short output with no noise runs unchanged", () =>
   assert.equal(result.changed, false);
   assert.equal(result.output, short);
 });
+
+
+test("test-output-slim: retains long assertion diffs, unknown text and exit status", () => {
+  const prefix = "PASS harmless suite\n".repeat(30);
+  const tail = "FAIL case\nExpected:\n" + "  arbitrary diff continuation\n".repeat(80) +
+    "Process exited with code 23\n";
+  const result = testOutputSlim.reduce(prefix + tail);
+  assert.equal(result.changed, true);
+  assert.ok(result.output.endsWith(tail));
+});
+test("test-output-slim: never assumes unknown lines are noise", () => {
+  const input = "unrecognized diagnostic\n".repeat(30) + "Tests: 1 passed\n";
+  assert.deepEqual(testOutputSlim.reduce(input), { output: input, changed: false });
+});
+test("test-output-slim: keeps warnings, and recognizes ANSI passes without changing retained bytes", () => {
+  const warning = "\x1b[33mWarning: check credentials\x1b[0m\r\n";
+  const input = "\x1b[32mPASS harmless suite\x1b[0m\r\n".repeat(30) + warning;
+  const result = testOutputSlim.reduce(input);
+  assert.equal(result.changed, true);
+  assert.ok(result.output.endsWith(warning));
+  assert.equal(testOutputSlim.reduce(result.output).output, result.output);
+});
+
+for (const header of ["AssertionError: mismatch", "TypeError: invalid value"]) {
+  test(`test-output-slim: preserves diagnostic tail after ${header}`, () => {
+    const tail = header + "\n" + "  \u2713 success-looking assertion data\n".repeat(20) + "Tests: 1 failed\n";
+    const result = testOutputSlim.reduce("PASS normal suite\n".repeat(20) + tail);
+    assert.ok(result.output.endsWith(tail));
+  });
+}

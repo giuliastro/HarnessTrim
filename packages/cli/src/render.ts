@@ -205,10 +205,8 @@ export function renderClaudeInstall(result: ClaudeInstallResult, apply: boolean)
   }
   lines.push("");
   lines.push("Note: `harnesstrim` must be on PATH (used by both the hook and the reduce pipe).");
-  lines.push(
-    "The CLAUDE.md instruction is the effective path today: current Claude Code versions don't apply"
-  );
-  lines.push("the hook's updatedToolOutput, so piping through `harnesstrim reduce` is what saves tokens.");
+  lines.push("The Bash hook preserves the structured result. Acceptance depends on the installed Claude version.");
+  lines.push("Reload the harness after install; use the status-safe reduce pipe on unsupported versions.");
   if (!apply) lines.push("Dry run — nothing written. Re-run with `--apply`.");
   return lines.join("\n");
 }

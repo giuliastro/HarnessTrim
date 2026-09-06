@@ -1,4 +1,5 @@
-import { getEncoding } from "js-tiktoken";
+import { Tiktoken } from "js-tiktoken/lite";
+import cl100k from "js-tiktoken/ranks/cl100k_base";
 
 /**
  * Token counting for `harnesstrim reduce` and `harnesstrim mcp`.
@@ -13,14 +14,14 @@ import { getEncoding } from "js-tiktoken";
  * cl100k_base matches the Tier A micro-benchmark tokenizer
  * (benchmarks/src/tokenizer.ts) so telemetry and bench use one counting convention.
  * Counts are a cross-model stand-in — exact per-vendor counts need that vendor's
- * tokenizer (see PLAN.md §8). The tokenizer is initialized lazily and counts never
+ * tokenizer (see PLAN.md §8). Only cl100k_base is bundled, in a lazily imported chunk. The tokenizer is initialized lazily and counts never
  * throw: a tokenizer failure degrades to 0/omitted rather than breaking the pipe
  * or the MCP server.
  */
-let encoding: ReturnType<typeof getEncoding> | null = null;
+let encoding: Tiktoken | null = null;
 
-function encodingOnce(): ReturnType<typeof getEncoding> {
-  encoding ??= getEncoding("cl100k_base");
+function encodingOnce(): Tiktoken {
+  encoding ??= new Tiktoken(cl100k);
   return encoding;
 }
 
