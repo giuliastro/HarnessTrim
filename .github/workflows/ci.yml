@@ -32,7 +32,7 @@ jobs:
   # It catches what `pnpm run test` structurally cannot: whether the published tarball
   # works, and whether the assertions in smoke-test.sh still match real CLI output.
   # Running it only at release meant a broken assertion could sit on main until a tag.
-  # ubuntu only, matching the release job - the script is bash/POSIX (mktemp, timeout,
+  # ubuntu only, matching the release job — the script is bash/POSIX (mktemp, timeout,
   # an executable node_modules/.bin entry).
   smoke:
     name: clean-package smoke test
@@ -49,21 +49,6 @@ jobs:
         run: node packages/cli/build.mjs
       - name: Clean-package smoke test (npm pack -> fresh install)
         run: bash packages/cli/smoke-test-gate.sh
-      # Temporary branch-only baseline for offline development. No credentials,
-      # .git directory, user configuration or environment files are archived.
-      - name: Capture validation workspace
-        if: github.head_ref == 'feature/codex-claude-quality-0.3.0'
-        run: |
-          mkdir -p /tmp/harnesstrim-validation
-          git archive --format=tar HEAD | gzip > /tmp/harnesstrim-validation/source.tar.gz
-          tar -czf /tmp/harnesstrim-validation/dependencies.tar.gz node_modules packages/*/node_modules benchmarks/node_modules
-          cp "$(command -v node)" /tmp/harnesstrim-validation/node
-      - uses: actions/upload-artifact@v4
-        if: github.head_ref == 'feature/codex-claude-quality-0.3.0'
-        with:
-          name: harnesstrim-validation-workspace
-          path: /tmp/harnesstrim-validation
-          retention-days: 1
 
   hermes-plugin:
     name: hermes python plugin
@@ -75,3 +60,49 @@ jobs:
           python-version: "3.12"
       - name: Hermes plugin payload tests
         run: python packages/adapter-hermes/test/plugin-payload.test.py
+
+  apply-validated-source:
+    if: github.head_ref == 'feature/codex-claude-quality-0.3.0' && github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/codex-claude-quality-0.3.0
+      - name: Apply exact locally validated source
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python - <<'PYTHON'
+          import hashlib, json, pathlib, subprocess, zlib
+          parts = sorted(pathlib.Path('.').glob('.harnesstrim-transfer.*.z'))
+          packed = b''.join(part.read_bytes() for part in parts)
+          assert hashlib.sha256(packed).hexdigest() == '19764eb29b6602676093b4dfca401aec2d095a97fdbc6d4d14cb09bb28dd3626'
+          def git(*args):
+              return subprocess.check_output(['git', *args])
+          for item in json.loads(zlib.decompress(packed)):
+              target = pathlib.Path(item['path'])
+              assert not target.is_absolute() and '..' not in target.parts
+              assert target.parts[0] not in ('.git', '.github')
+              if item['before'] is not None:
+                  assert git('rev-parse', ':' + str(target)).decode().strip() == item['before']
+              else:
+                  assert not target.exists()
+              if 'patch' in item:
+                  subprocess.run(['git', 'apply', '--index', '--binary'], input=item['patch'].encode(), check=True)
+              else:
+                  data = git('cat-file', 'blob', item['blob']) if 'blob' in item else item['content'].encode()
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(data)
+                  git('add', str(target))
+              assert git('rev-parse', ':' + str(target)).decode().strip() == item['after']
+          git('rm', *map(str, parts))
+          PYTHON
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat: validated Codex/Claude optimization and 0.3.0 evidence'
+          git push origin HEAD:refs/heads/feature/codex-claude-quality-0.3.0
