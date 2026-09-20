@@ -140,6 +140,50 @@ mkdir -p "$ND"
 [ -d "$ND/.codex/skills" ] || fail "--no-instructions: codex skills missing"
 [ ! -f "$ND/AGENTS.md" ] || fail "--no-instructions: AGENTS.md should NOT exist"
 "$BIN" install opencode "$ND" --mode dryrun --min-length 2000 --tools bash,read --apply >/dev/null 2>&1 || fail "install opencode --mode/--min-length/--tools --apply"
+
+# A transactional manager may remove owned skill files while leaving the directories themselves.
+# Re-install must treat those empty/partial directory shells as missing skills, restore the shipped
+# files, and produce bytes matching the capability digest contract.
+node --input-type=module - "$ND" <<'EMPTY_SKILL_DIRS'
+import fs from 'node:fs';
+import path from 'node:path';
+const root = process.argv[2];
+function removeFilesKeepDirs(dir) {
+  if (!fs.existsSync(dir)) return;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const target = path.join(dir, entry.name);
+    if (entry.isDirectory()) removeFilesKeepDirs(target);
+    else fs.rmSync(target, { force: true });
+  }
+}
+removeFilesKeepDirs(path.join(root, '.claude', 'skills'));
+removeFilesKeepDirs(path.join(root, '.codex', 'skills'));
+EMPTY_SKILL_DIRS
+"$BIN" install claude "$ND" --no-hook --no-instructions --apply >/dev/null 2>&1 || fail "reinstall claude after managed file removal"
+"$BIN" install codex "$ND" --no-instructions --apply >/dev/null 2>&1 || fail "reinstall codex after managed file removal"
+node --input-type=module - "$BIN" "$ND" <<'VERIFY_SKILL_DIGESTS'
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+const [binary, root] = process.argv.slice(2);
+const capsRun = spawnSync(binary, ['capabilities'], { encoding: 'utf8' });
+assert.equal(capsRun.status, 0, capsRun.stderr);
+const caps = JSON.parse(capsRun.stdout);
+for (const harness of ['claude', 'codex']) {
+  const declaredPrefix = `.${harness === 'claude' ? 'claude' : 'codex'}/skills/`;
+  for (const [relative, expected] of Object.entries(caps.digests[harness] ?? {})) {
+    if (!relative.startsWith(declaredPrefix)) continue;
+    const actualPath = path.join(root, ...relative.split('/'));
+    assert.ok(fs.existsSync(actualPath), `missing ${relative}`);
+    const actual = crypto.createHash('sha256').update(fs.readFileSync(actualPath)).digest('hex');
+    assert.equal(actual, expected, `digest mismatch for ${relative}`);
+  }
+}
+VERIFY_SKILL_DIGESTS
+[ "$?" -eq 0 ] || fail "reinstalled Claude/Codex skills do not match capability digests"
+
 grep -q '"mode": "dryrun"' "$ND/.opencode/plugin/harnesstrim.ts" || fail "opencode wrapper missing mode dryrun"
 grep -q '"minLength": 2000' "$ND/.opencode/plugin/harnesstrim.ts" || fail "opencode wrapper missing minLength 2000"
 grep -q '"toolFilter"' "$ND/.opencode/plugin/harnesstrim.ts" || fail "opencode wrapper missing toolFilter"

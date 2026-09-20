@@ -12,7 +12,7 @@ cheaper model behind your back.
 Install the CLI on the PATH used by your harness:
 
 ```sh
-npm install -g harnesstrim@0.3.0
+npm install -g harnesstrim@0.3.1
 harnesstrim doctor
 
 # Run inside your project. Omit --apply to preview all writes.
