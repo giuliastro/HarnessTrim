@@ -172,12 +172,10 @@ const capsRun = spawnSync(binary, ['capabilities'], { encoding: 'utf8' });
 assert.equal(capsRun.status, 0, capsRun.stderr);
 const caps = JSON.parse(capsRun.stdout);
 for (const harness of ['claude', 'codex']) {
-  const prefix = `.${path.sep}${harness}${path.sep}skills${path.sep}`;
   const declaredPrefix = `.${harness === 'claude' ? 'claude' : 'codex'}/skills/`;
   for (const [relative, expected] of Object.entries(caps.digests[harness] ?? {})) {
     if (!relative.startsWith(declaredPrefix)) continue;
     const actualPath = path.join(root, ...relative.split('/'));
-    assert.ok(actualPath.includes(prefix), actualPath);
     assert.ok(fs.existsSync(actualPath), `missing ${relative}`);
     const actual = crypto.createHash('sha256').update(fs.readFileSync(actualPath)).digest('hex');
     assert.equal(actual, expected, `digest mismatch for ${relative}`);
