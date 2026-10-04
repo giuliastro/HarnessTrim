@@ -56,6 +56,10 @@ loads. There are two correct ways to run this adapter:
 
 Options passed to the wrapper's second argument take precedence over environment variables, then
 defaults. (There is no way to pass options through `opencode.json` — see above.)
+Explicit boolean options take precedence in either direction: `debug: false` silences diagnostics
+even with `HARNESSTRIM_DEBUG=1`, and `trackPassThrough: true` records unchanged outputs when telemetry
+is enabled even with `HARNESSTRIM_TRACK_PASSTHROUGH=0`. Omitted or non-boolean values use the environment
+and default behavior.
 
 | Option              | Env var                   | Default    | Meaning                                                        |
 | ------------------- | ------------------------- | ---------- | -------------------------------------------------------------- |
@@ -65,6 +69,7 @@ defaults. (There is no way to pass options through `opencode.json` — see above
 | `compactionHandoff` | —                         | `true`     | Inject handoff guidance on compaction.                         |
 | `telemetry`         | `HARNESSTRIM_TELEMETRY`   | `false`    | Append a `TrimEvent` JSONL record per reduction.               |
 | `telemetryPath`     | `HARNESSTRIM_TELEMETRY_PATH` | `.harnesstrim/metrics.jsonl` | Where telemetry JSONL is appended. |
+| `trackPassThrough`  | `HARNESSTRIM_TRACK_PASSTHROUGH` | `true` | Record unchanged outputs at or above `minLength` when telemetry is enabled; env `0` or `false` disables. |
 
 Telemetry is **off by default**. When on, each reduction appends one JSON line; read the aggregate
 with `harnesstrim metrics <path>`. In `dryrun` mode telemetry still records what *would* be reduced,
