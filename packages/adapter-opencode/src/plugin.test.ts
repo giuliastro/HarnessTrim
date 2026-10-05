@@ -145,3 +145,43 @@ test("telemetry: sub-threshold output records no pass-through", async () => {
 
   assert.equal(fs.existsSync(telemetryPath), false);
 });
+
+test("debug:false suppresses diagnostics even when the environment enables them", async (t) => {
+  const previous = process.env.HARNESSTRIM_DEBUG;
+  t.after(() => {
+    if (previous === undefined) delete process.env.HARNESSTRIM_DEBUG;
+    else process.env.HARNESSTRIM_DEBUG = previous;
+  });
+  process.env.HARNESSTRIM_DEBUG = "true";
+  const log = t.mock.method(console, "error", () => {});
+  const hooks = await HarnessTrim(noopInput, { mode: "dryrun", debug: false, telemetry: false });
+  const { input, output } = afterArgs(noisyTestOutput);
+  await hooks["tool.execute.after"]!(input, output);
+
+  assert.equal(output.output, noisyTestOutput);
+  assert.equal(log.mock.callCount(), 0);
+});
+
+test("trackPassThrough:true records unchanged output even when the environment disables tracking", async (t) => {
+  const previous = process.env.HARNESSTRIM_TRACK_PASSTHROUGH;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "htrim-tracking-override-"));
+  t.after(() => {
+    if (previous === undefined) delete process.env.HARNESSTRIM_TRACK_PASSTHROUGH;
+    else process.env.HARNESSTRIM_TRACK_PASSTHROUGH = previous;
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  process.env.HARNESSTRIM_TRACK_PASSTHROUGH = "false";
+  const telemetryPath = path.join(dir, "metrics.jsonl");
+  const hooks = await HarnessTrim(noopInput, {
+    mode: "active", telemetry: true, telemetryPath, trackPassThrough: true,
+  });
+  const text = "ordinary project notes ".repeat(40);
+  const { input, output } = afterArgs(text);
+  await hooks["tool.execute.after"]!(input, output);
+
+  assert.equal(output.output, text);
+  const events = parseTrimEvents(fs.readFileSync(telemetryPath, "utf8"));
+  assert.equal(events.length, 1);
+  assert.equal(events[0].changed, false);
+  assert.equal(events[0].reducer, null);
+});

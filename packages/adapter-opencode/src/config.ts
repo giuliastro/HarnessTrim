@@ -65,7 +65,10 @@ export function resolveConfig(options: Record<string, unknown> = {}): AdapterCon
   const minLength =
     minFromOptions ?? (Number.isFinite(minFromEnv) ? (minFromEnv as number) : DEFAULT_MIN_LENGTH);
 
-  const debug = options.debug === true || env.HARNESSTRIM_DEBUG === "1" || env.HARNESSTRIM_DEBUG === "true";
+  const debug =
+    typeof options.debug === "boolean"
+      ? options.debug
+      : env.HARNESSTRIM_DEBUG === "1" || env.HARNESSTRIM_DEBUG === "true";
   const compactionHandoff = options.compactionHandoff !== false;
   const toolFilter = parseToolFilter(options.toolFilter) ?? parseToolFilter(env.HARNESSTRIM_TOOLS);
 
@@ -80,8 +83,9 @@ export function resolveConfig(options: Record<string, unknown> = {}): AdapterCon
 
   const trackPassthroughEnv = env.HARNESSTRIM_TRACK_PASSTHROUGH;
   const trackPassThrough =
-    options.trackPassThrough !== false &&
-    !(trackPassthroughEnv === "0" || trackPassthroughEnv === "false");
+    typeof options.trackPassThrough === "boolean"
+      ? options.trackPassThrough
+      : !(trackPassthroughEnv === "0" || trackPassthroughEnv === "false");
 
   return { mode, minLength, debug, compactionHandoff, toolFilter, telemetry, telemetryPath, trackPassThrough };
 }
